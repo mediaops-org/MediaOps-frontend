@@ -5,6 +5,7 @@ import { CreateView } from "@/components/CreateView";
 import { ExploreView } from "@/components/ExploreView";
 import { LibraryView } from "@/components/LibraryView";
 import { AutopilotView } from "@/components/AutopilotView";
+import { ProtectedRoute } from "@/components/AuthGuards";
 import {
   initialSessions,
   initialAutopilotJobs,
@@ -64,18 +65,20 @@ function App() {
     setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, active: !j.active } : j)));
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
-      <Sidebar active={view} onChange={setView} onNewSession={handleNewSession} />
-      <main key={view} className="fade-in min-w-0 flex-1">
-        {view === "create" && <CreateView session={active} onUpdate={updateSession} />}
-        {view === "explore" && <ExploreView />}
-        {view === "library" && (
-          <LibraryView sessions={sessions} onOpen={openSession} onUpdateReel={updateReel} />
-        )}
-        {view === "autopilot" && (
-          <AutopilotView jobs={jobs} onCreate={createJob} onToggle={toggleJob} />
-        )}
-      </main>
-    </div>
+    <ProtectedRoute>
+      <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
+        <Sidebar active={view} onChange={setView} onNewSession={handleNewSession} />
+        <main key={view} className="fade-in min-w-0 flex-1">
+          {view === "create" && <CreateView session={active} onUpdate={updateSession} />}
+          {view === "explore" && <ExploreView />}
+          {view === "library" && (
+            <LibraryView sessions={sessions} onOpen={openSession} onUpdateReel={updateReel} />
+          )}
+          {view === "autopilot" && (
+            <AutopilotView jobs={jobs} onCreate={createJob} onToggle={toggleJob} />
+          )}
+        </main>
+      </div>
+    </ProtectedRoute>
   );
 }

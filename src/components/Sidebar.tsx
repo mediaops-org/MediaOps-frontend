@@ -1,6 +1,8 @@
-import { Compass, Sparkles, FolderClosed, ChevronsLeft, ChevronsRight, Zap } from "lucide-react";
+import { Compass, Sparkles, FolderClosed, ChevronsLeft, ChevronsRight, Zap, LogOut } from "lucide-react";
 import { useState } from "react";
 import type { View } from "@/lib/types";
+import { useAuth } from "@/lib/auth-context";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 type Props = {
   active: View;
@@ -17,6 +19,7 @@ const items: { id: View; label: string; icon: typeof Compass; pro?: boolean }[] 
 
 export function Sidebar({ active, onChange, onNewSession }: Props) {
   const [collapsed, setCollapsed] = useState(false);
+  const { user, logout } = useAuth();
   const w = collapsed ? "w-[68px]" : "w-[220px]";
 
   return (
@@ -89,15 +92,28 @@ export function Sidebar({ active, onChange, onNewSession }: Props) {
 
       {/* User */}
       <div className="border-t border-border p-3">
-        <div className="flex items-center gap-3">
-          <div className="h-8 w-8 shrink-0 rounded-full bg-gradient-to-br from-primary to-accent ring-2 ring-background" />
+        <div className="flex items-center gap-3 mb-3">
+          <Avatar className="h-8 w-8 shrink-0 ring-2 ring-background">
+            {user?.avatar && <AvatarImage src={user.avatar} alt={user.name} />}
+            <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-[10px] text-white">
+              {user?.name?.charAt(0).toUpperCase() || "U"}
+            </AvatarFallback>
+          </Avatar>
           {!collapsed && (
             <div className="fade-in min-w-0 flex-1">
-              <div className="truncate text-[13px] font-medium">Alex Rivera</div>
-              <div className="truncate font-mono text-[10px] text-muted-foreground">pro · 240 reels</div>
+              <div className="truncate text-[13px] font-medium text-white">{user?.name}</div>
+              <div className="truncate font-mono text-[10px] text-muted-foreground">{user?.email}</div>
             </div>
           )}
         </div>
+        <button
+          onClick={() => logout()}
+          className="flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive"
+          title={collapsed ? "Logout" : undefined}
+        >
+          <LogOut className="h-[18px] w-[18px] shrink-0" />
+          {!collapsed && <span className="font-mono text-[11px] uppercase tracking-widest">Logout</span>}
+        </button>
       </div>
     </aside>
   );
