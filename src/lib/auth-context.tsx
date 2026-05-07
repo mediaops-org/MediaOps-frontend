@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { User, AuthState, LoginInput, RegisterInput } from "./auth-types";
+import apiFetch from './api';
 
 interface AuthContextType extends AuthState {
   login: (data: LoginInput) => Promise<void>;
@@ -23,20 +24,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchUser = useCallback(async () => {
     try {
-      const response = await fetch("/api/auth/me");
+      const token = localStorage.getItem('token');
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const response = await apiFetch('/api/users/me');
       if (response.ok) {
         const user = await response.json();
         setState({ 
           user, 
           isAuthenticated: true, 
           isLoading: false,
-          isProUser: user.plan === "pro"
+          isProUser: user.plan === 'pro'
         });
       } else {
         setState({ user: null, isAuthenticated: false, isLoading: false, isProUser: false });
       }
     } catch (error) {
-      console.error("Failed to fetch user:", error);
+      console.error('Failed to fetch user:', error);
       setState({ user: null, isAuthenticated: false, isLoading: false, isProUser: false });
     }
   }, []);
@@ -46,42 +50,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [fetchUser]);
 
   const login = async (data: LoginInput) => {
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    const response = await apiFetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
-    });
+    }); 
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || "Invalid credentials");
+      throw new Error(error.message || 'Invalid credentials');
     }
 
+    const body = await response.json();
+    if (body.data?.token) localStorage.setItem('token', body.data.token);
+
     await fetchUser();
-    navigate({ to: "/" });
+    navigate({ to: '/' });
   };
 
   const register = async (data: RegisterInput) => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { confirmPassword, ...registerData } = data;
-    const response = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    const response = await apiFetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(registerData),
-    });
+    }); 
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || "Registration failed");
+      throw new Error(error.message || 'Registration failed');
     }
 
+    const body = await response.json();
+    if (body.data?.token) localStorage.setItem('token', body.data.token);
+
     await fetchUser();
-    navigate({ to: "/" });
+    navigate({ to: '/' });
   };
 
   const logout = async () => {
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await apiFetch('/api/auth/logout', { method: 'POST' });
+      localStorage.removeItem('token');
     } catch (error) {
       console.error("Logout failed:", error);
     } finally {
@@ -91,11 +102,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const forgotPassword = async (email: string) => {
-    const response = await fetch("/api/auth/forgot-password", {
+    const response = await apiFetch("/api/auth/forgot-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),
-    });
+    }); 
 
     if (!response.ok) {
       const error = await response.json();
