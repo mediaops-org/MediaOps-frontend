@@ -28,11 +28,12 @@ export function UpgradeModalProvider({ children }: { children: React.ReactNode }
   const handleUpgrade = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/billing/create-checkout-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: "pro" }),
-      });
+          const { default: apiFetch } = await import('../lib/api');
+          const response = await apiFetch('/api/billing/create-checkout-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plan: "pro" }),
+          });
       const data = await response.json();
       if (data.checkoutUrl) {
         window.location.href = data.checkoutUrl;
