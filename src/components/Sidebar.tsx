@@ -28,7 +28,8 @@ export function Sidebar({ active, onChange, onNewSession }: Props) {
 
   const handlePortalSession = async () => {
     try {
-      const resp = await fetch("/api/billing/portal-session");
+      const { default: apiFetch } = await import('../lib/api');
+      const resp = await apiFetch('/api/billing/portal-session');
       const data = await resp.json();
       if (data.portalUrl) {
         window.location.href = data.portalUrl;
