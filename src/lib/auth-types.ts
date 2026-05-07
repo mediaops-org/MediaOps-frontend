@@ -33,10 +33,12 @@ export interface User {
   name: string;
   email: string;
   avatar?: string;
+  plan: "free" | "pro";
 }
 
 export interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isProUser: boolean;
 }

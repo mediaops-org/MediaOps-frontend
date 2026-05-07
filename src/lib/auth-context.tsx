@@ -17,6 +17,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user: null,
     isAuthenticated: false,
     isLoading: true,
+    isProUser: false,
   });
   const navigate = useNavigate();
 
@@ -25,13 +26,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const response = await fetch("/api/auth/me");
       if (response.ok) {
         const user = await response.json();
-        setState({ user, isAuthenticated: true, isLoading: false });
+        setState({ 
+          user, 
+          isAuthenticated: true, 
+          isLoading: false,
+          isProUser: user.plan === "pro"
+        });
       } else {
-        setState({ user: null, isAuthenticated: false, isLoading: false });
+        setState({ user: null, isAuthenticated: false, isLoading: false, isProUser: false });
       }
     } catch (error) {
       console.error("Failed to fetch user:", error);
-      setState({ user: null, isAuthenticated: false, isLoading: false });
+      setState({ user: null, isAuthenticated: false, isLoading: false, isProUser: false });
     }
   }, []);
 

@@ -1,8 +1,11 @@
-import { Compass, Sparkles, FolderClosed, ChevronsLeft, ChevronsRight, Zap, LogOut } from "lucide-react";
+import { Compass, Sparkles, FolderClosed, ChevronsLeft, ChevronsRight, Zap, LogOut, CreditCard, Tag } from "lucide-react";
 import { useState } from "react";
 import type { View } from "@/lib/types";
 import { useAuth } from "@/lib/auth-context";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useNavigate, Link } from "@tanstack/react-router";
 
 type Props = {
   active: View;
@@ -19,8 +22,21 @@ const items: { id: View; label: string; icon: typeof Compass; pro?: boolean }[] 
 
 export function Sidebar({ active, onChange, onNewSession }: Props) {
   const [collapsed, setCollapsed] = useState(false);
-  const { user, logout } = useAuth();
+  const { user, isProUser, logout } = useAuth();
+  const navigate = useNavigate();
   const w = collapsed ? "w-[68px]" : "w-[220px]";
+
+  const handlePortalSession = async () => {
+    try {
+      const resp = await fetch("/api/billing/portal-session");
+      const data = await resp.json();
+      if (data.portalUrl) {
+        window.location.href = data.portalUrl;
+      }
+    } catch (e) {
+      console.error("Failed to open billing portal", e);
+    }
+  };
 
   return (
     <aside
@@ -79,7 +95,39 @@ export function Sidebar({ active, onChange, onNewSession }: Props) {
             </button>
           );
         })}
+
+        <Link
+          to="/pricing"
+          className={`group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all text-muted-foreground hover:bg-secondary/50 hover:text-foreground`}
+          title={collapsed ? "Pricing" : undefined}
+        >
+          <Tag className="h-[18px] w-[18px] shrink-0" />
+          {!collapsed && <span className="flex-1 font-mono text-[13px]">Pricing</span>}
+        </Link>
+
+        {isProUser && (
+          <button
+            onClick={handlePortalSession}
+            className={`group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all text-muted-foreground hover:bg-secondary/50 hover:text-foreground`}
+            title={collapsed ? "Billing" : undefined}
+          >
+            <CreditCard className="h-[18px] w-[18px] shrink-0" />
+            {!collapsed && <span className="flex-1 font-mono text-[13px]">Billing</span>}
+          </button>
+        )}
       </nav>
+
+      {!isProUser && !collapsed && (
+        <div className="mx-3 mb-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+          <p className="mb-2 text-[11px] font-medium text-amber-500/90 tracking-tight">Unlock Autopilot and priority rendering</p>
+          <Button
+            className="h-8 w-full bg-amber-500 text-[10px] font-bold uppercase tracking-widest text-black hover:bg-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.2)]"
+            onClick={() => navigate({ to: "/pricing" })}
+          >
+            Go Pro
+          </Button>
+        </div>
+      )}
 
       {/* Collapse toggle */}
       <button
@@ -101,7 +149,18 @@ export function Sidebar({ active, onChange, onNewSession }: Props) {
           </Avatar>
           {!collapsed && (
             <div className="fade-in min-w-0 flex-1">
-              <div className="truncate text-[13px] font-medium text-white">{user?.name}</div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="truncate text-[13px] font-medium text-white">{user?.name}</div>
+                <Badge 
+                  className={`h-4 px-1 text-[8px] uppercase tracking-tighter ${
+                    isProUser 
+                      ? "bg-amber-500 text-black shadow-[0_0_10px_rgba(245,158,11,0.3)]" 
+                      : "bg-zinc-800 text-zinc-400 border-none"
+                  }`}
+                >
+                  {isProUser ? "Pro" : "Free"}
+                </Badge>
+              </div>
               <div className="truncate font-mono text-[10px] text-muted-foreground">{user?.email}</div>
             </div>
           )}

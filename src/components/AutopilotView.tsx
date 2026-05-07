@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
-import { Plus, Zap, X, Calendar, Repeat, Hash, Activity } from "lucide-react";
+import { Plus, Zap, X, Calendar, Repeat, Hash, Activity, Lock } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { useUpgradeModal } from "@/components/UpgradeModal";
 import type {
   AutopilotJob,
   AutopilotTopic,
@@ -37,10 +39,53 @@ function genFasterThanScrape(scrape: ScrapingFrequency, gen: GenerationFrequency
 
 export function AutopilotView({ jobs, onCreate, onToggle }: Props) {
   const [open, setOpen] = useState(false);
+  const { isProUser } = useAuth();
+  const { open: openUpgrade } = useUpgradeModal();
   const sorted = useMemo(() => [...jobs].sort((a, b) => b.createdAt - a.createdAt), [jobs]);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
+      {!isProUser && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-md bg-black/10">
+          <div className="w-full max-w-md rounded-2xl border border-amber-500/20 bg-black/60 p-8 text-center backdrop-blur-2xl shadow-[0_0_50px_rgba(245,158,11,0.1)]">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500 ring-1 ring-amber-500/50">
+              <Lock className="h-8 w-8 animate-pulse" />
+            </div>
+            <h2 className="text-2xl font-bold text-white">Unlock AI Autopilot</h2>
+            <p className="mt-3 text-sm text-zinc-400">
+              Transform your ideas into cinematic reels instantly with our AI-powered autopilot. Available on Pro.
+            </p>
+            <div className="mt-8 space-y-3">
+              <ul className="mb-6 space-y-2 text-left">
+                {[
+                  "Scheduled Recurring Generation",
+                  "Automated Topic Research",
+                  "Priority Video Rendering",
+                ].map((f) => (
+                  <li key={f} className="flex items-center gap-2 text-[13px] text-zinc-300">
+                    <Zap className="h-3 w-3 text-amber-500" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={openUpgrade}
+                className="w-full rounded-lg bg-amber-500 py-3 font-semibold text-black transition-all hover:bg-amber-400 hover:scale-[1.02] active:scale-[0.98]"
+              >
+                Upgrade to Pro
+              </button>
+              <button
+                className="w-full text-xs text-zinc-500 hover:text-white transition-colors"
+                onClick={() => {
+                  // Fallback for click-through if they manage to see the background
+                }}
+              >
+                Learn more about Pro
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <header className="flex h-16 shrink-0 items-center justify-between border-b border-border px-6">
         <div>
           <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
