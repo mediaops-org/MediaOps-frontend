@@ -1,4 +1,4 @@
-export type View = "explore" | "create" | "library" | "autopilot";
+export type View = "explore" | "create" | "youtube" | "library" | "autopilot";
 
 export type ReelOrigin = "prompt" | "autopilot";
 

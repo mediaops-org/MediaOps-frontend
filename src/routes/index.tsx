@@ -5,6 +5,7 @@ import { CreateView } from "@/components/CreateView";
 import { ExploreView } from "@/components/ExploreView";
 import { LibraryView } from "@/components/LibraryView";
 import { AutopilotView } from "@/components/AutopilotView";
+import { YoutubeShortsView } from "@/components/YoutubeShortsView";
 import { ProtectedRoute } from "@/components/AuthGuards";
 import {
   initialSessions,
@@ -74,6 +75,7 @@ function App() {
           {view === "library" && (
             <LibraryView sessions={sessions} onOpen={openSession} onUpdateReel={updateReel} />
           )}
+          {view === "youtube" && <YoutubeShortsView />}
           {view === "autopilot" && (
             <AutopilotView jobs={jobs} onCreate={createJob} onToggle={toggleJob} />
           )}

@@ -1,4 +1,4 @@
-import { Compass, Sparkles, FolderClosed, ChevronsLeft, ChevronsRight, Zap, LogOut, CreditCard, Tag } from "lucide-react";
+import { Compass, Sparkles, FolderClosed, ChevronsLeft, ChevronsRight, Zap, LogOut, CreditCard, Tag, YoutubeIcon } from "lucide-react";
 import { useState } from "react";
 import type { View } from "@/lib/types";
 import { useAuth } from "@/lib/auth-context";
@@ -16,6 +16,7 @@ type Props = {
 const items: { id: View; label: string; icon: typeof Compass; pro?: boolean }[] = [
   { id: "explore", label: "Explore", icon: Compass },
   { id: "create", label: "Create", icon: Sparkles },
+  { id: "youtube", label: "YT Shorts", icon: YoutubeIcon },
   { id: "library", label: "Library", icon: FolderClosed },
   { id: "autopilot", label: "Autopilot", icon: Zap, pro: true },
 ];
