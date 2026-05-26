@@ -1,7 +1,9 @@
 import { z } from "zod";
 
 export const loginSchema = z.object({
-  email: z.string().email("Invalid email format"),
+  // Accept either an email or a handle (identifier). Login view will map this
+  // to `{ email }` or `{ handle }` before sending to the backend.
+  identifier: z.string().min(1, "Please enter your email or handle"),
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
 

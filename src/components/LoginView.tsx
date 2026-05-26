@@ -28,7 +28,14 @@ export function LoginView() {
     setIsLoading(true);
     setError(null);
     try {
-      await login(data);
+      // The backend seed uses `handle` for seeded users. If the user typed an
+      // email (contains @) we send `{ email }`, otherwise we send `{ handle }`.
+      const identifier = (data as any).identifier as string;
+      const payload: Record<string, string> = identifier?.includes("@")
+        ? { email: identifier, password: data.password }
+        : { handle: identifier, password: data.password };
+
+      await login(payload as any);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
@@ -93,17 +100,17 @@ export function LoginView() {
           </div>
           <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="email" className="text-zinc-300">Email</Label>
+              <Label htmlFor="identifier" className="text-zinc-300">Email or handle</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="m@example.com"
+                id="identifier"
+                type="text"
+                placeholder="m@example.com or handle"
                 className="border-white/10 bg-white/5 text-white placeholder:text-zinc-600 focus-visible:ring-zinc-700"
-                {...register("email")}
+                {...register("identifier")}
                 disabled={isLoading}
               />
-              {errors.email && (
-                <p className="text-xs text-destructive">{errors.email.message}</p>
+              {errors.identifier && (
+                <p className="text-xs text-destructive">{errors.identifier.message}</p>
               )}
             </div>
             <div className="grid gap-2">

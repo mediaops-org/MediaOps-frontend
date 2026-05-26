@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { useNavigate } from "@tanstack/react-router";
 import type { User, AuthState, LoginInput, RegisterInput } from "./auth-types";
 import apiFetch from './api';
+import { mockLogin } from './mock-data';
 
 interface AuthContextType extends AuthState {
   login: (data: LoginInput) => Promise<void>;
@@ -24,10 +25,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchUser = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token');
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const response = await apiFetch('/api/users/me');
+      const response = await apiFetch('/api/auth/me');
       if (response.ok) {
         const user = await response.json();
         setState({ 
@@ -50,6 +48,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [fetchUser]);
 
   const login = async (data: LoginInput) => {
+    // Extract the identifier (email or handle) and password from the payload
+    const identifier = (data as any).email || (data as any).handle || (data as any).identifier;
+    const password = data.password;
+    const mockUser = mockLogin(identifier, password);
+    
+    if (mockUser) {
+      // Mock login successful 
+      const mockToken = 'mock_token_' + mockUser.id;
+      localStorage.setItem('token', mockToken);
+      setState({ 
+        user: mockUser, 
+        isAuthenticated: true, 
+        isLoading: false,
+        isProUser: mockUser.plan === 'pro'
+      });
+      navigate({ to: '/' });
+      return;
+    }
+
+    // If mock login fails, try the real backend
     const response = await apiFetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -96,7 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("Logout failed:", error);
     } finally {
-      setState({ user: null, isAuthenticated: false, isLoading: false });
+      setState({ user: null, isAuthenticated: false, isLoading: false, isProUser: false });
       navigate({ to: "/login" });
     }
   };

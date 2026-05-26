@@ -1,4 +1,5 @@
 import type { AutopilotJob, ReelOrigin } from "./types";
+import type { User } from "./auth-types";
 
 export type Reel = {
   id: string;
@@ -128,4 +129,56 @@ export function newSession(): Session {
     createdAt: Date.now(),
     messages: [],
   };
+}
+
+// ========== MOCK LOGIN DATA FOR TESTING ==========
+
+/**
+ * Mock login credentials for testing the frontend.
+ * Use these to test the login flow without hitting the real backend.
+ */
+export const mockLoginCredentials = [
+  { email: "demo@example.com", handle: "demo", password: "password123" },
+  { email: "user@mediaops.io", handle: "user_pro", password: "password123" },
+  { email: "test@test.com", handle: "testuser", password: "password123" },
+];
+
+/**
+ * Mock user objects corresponding to the login credentials above.
+ * Use these to simulate successful authentication responses.
+ */
+export const mockUsers: Record<string, User> = {
+  demo: {
+    id: "user-1",
+    name: "Demo User",
+    email: "demo@example.com",
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=demo",
+    plan: "free",
+  },
+  user_pro: {
+    id: "user-2",
+    name: "Pro User",
+    email: "user@mediaops.io",
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=prouser",
+    plan: "pro",
+  },
+  testuser: {
+    id: "user-3",
+    name: "Test User",
+    email: "test@test.com",
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=testuser",
+    plan: "free",
+  },
+};
+
+/**
+ * Mock function to simulate login.
+ * Returns the mock user if credentials match, otherwise returns null.
+ */
+export function mockLogin(identifier: string, password: string): User | null {
+  const credential = mockLoginCredentials.find(
+    (c) => (c.email === identifier || c.handle === identifier) && c.password === password
+  );
+  if (!credential) return null;
+  return mockUsers[credential.handle] || null;
 }

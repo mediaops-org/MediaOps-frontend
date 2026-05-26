@@ -10,7 +10,9 @@ export async function apiFetch(input: RequestInfo, init?: RequestInit) {
     url = `${BASE}${input}`;
   }
 
-  return fetch(url, { ...init, headers });
+  // Ensure cookies are sent for cookie-based auth backends
+  const fetchInit: RequestInit = { ...init, headers, credentials: 'include' };
+  return fetch(url, fetchInit);
 }
 
 export default apiFetch;
