@@ -34,9 +34,10 @@ export function UpgradeModalProvider({ children }: { children: React.ReactNode }
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ plan: "pro" }),
           });
-      const data = await response.json();
-      if (data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
+      const body = await response.json();
+      const checkoutUrl = body.data?.checkoutUrl ?? body.checkoutUrl;
+      if (checkoutUrl) {
+        window.location.href = checkoutUrl;
       }
     } catch (error) {
       console.error("Failed to initiate checkout:", error);

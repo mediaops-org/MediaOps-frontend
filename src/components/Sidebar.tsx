@@ -31,9 +31,10 @@ export function Sidebar({ active, onChange, onNewSession }: Props) {
     try {
       const { default: apiFetch } = await import('../lib/api');
       const resp = await apiFetch('/api/billing/portal-session');
-      const data = await resp.json();
-      if (data.portalUrl) {
-        window.location.href = data.portalUrl;
+      const body = await resp.json();
+      const portalUrl = body.data?.portalUrl ?? body.portalUrl;
+      if (portalUrl) {
+        window.location.href = portalUrl;
       }
     } catch (e) {
       console.error("Failed to open billing portal", e);
