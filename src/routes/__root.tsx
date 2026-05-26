@@ -6,22 +6,63 @@ import appCss from "../styles.css?url";
 
 function NotFoundComponent() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          The page you're looking for doesn't exist or has been moved.
-        </p>
-        <div className="mt-6">
-          <Link
-            to="/"
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Go home
-          </Link>
+    <div className="fade-in flex min-h-screen flex-col items-center justify-center bg-background px-4 py-16">
+      {/* Film frame icon */}
+      <div className="relative mb-8 flex h-20 w-20 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10 ring-1 ring-primary/20 shadow-[0_0_40px_-8px_var(--glow)]">
+        <div className="absolute inset-0 rounded-2xl bg-primary/5 blur-xl" />
+        <svg className="relative h-9 w-9 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <rect x="2" y="2" width="20" height="20" rx="2.5" />
+          <rect x="2" y="6" width="20" height="0" strokeWidth="0.5" />
+          <rect x="2" y="18" width="20" height="0" strokeWidth="0.5" />
+          <line x1="6" y1="2" x2="6" y2="6" strokeWidth="1.5" />
+          <line x1="10" y1="2" x2="10" y2="6" strokeWidth="1.5" />
+          <line x1="14" y1="2" x2="14" y2="6" strokeWidth="1.5" />
+          <line x1="18" y1="2" x2="18" y2="6" strokeWidth="1.5" />
+          <line x1="6" y1="18" x2="6" y2="22" strokeWidth="1.5" />
+          <line x1="10" y1="18" x2="10" y2="22" strokeWidth="1.5" />
+          <line x1="14" y1="18" x2="14" y2="22" strokeWidth="1.5" />
+          <line x1="18" y1="18" x2="18" y2="22" strokeWidth="1.5" />
+          <path d="M9.5 9.5l5 2.5-5 2.5V9.5z" fill="currentColor" stroke="none" />
+        </svg>
+      </div>
+
+      {/* Status label */}
+      <div className="mb-3 font-mono text-[10px] uppercase tracking-widest text-primary">
+        render error · frame not found
+      </div>
+
+      {/* 404 */}
+      <h1
+        className="font-mono text-[9rem] font-bold leading-none tracking-tighter text-foreground"
+        style={{ textShadow: "0 0 60px color-mix(in oklab, var(--glow) 50%, transparent)" }}
+      >
+        404
+      </h1>
+
+      <p className="mt-2 text-base font-medium text-foreground">This reel doesn't exist.</p>
+      <p className="mt-1 max-w-sm text-center text-sm text-muted-foreground">
+        The frame you requested was never rendered, got lost on export, or was cut from the timeline.
+      </p>
+
+      {/* Fake terminal block */}
+      <div className="mt-8 w-full max-w-sm rounded-xl border border-border bg-card px-4 py-3 text-left font-mono text-xs">
+        <div className="mb-1 text-muted-foreground">$ mediaops render --frame 404</div>
+        <div className="text-destructive">✗ ERROR: frame not found in timeline</div>
+        <div className="mt-1 space-y-0.5 text-muted-foreground/60">
+          <div>  session_id   <span className="text-muted-foreground">null</span></div>
+          <div>  render_time  <span className="text-muted-foreground">∞ ms</span></div>
+          <div>  frames_out   <span className="text-muted-foreground">0 / 0</span></div>
+          <div>  status       <span className="text-destructive">FAILED</span></div>
         </div>
       </div>
+
+      {/* CTA */}
+      <Link
+        to="/"
+        className="mt-8 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 font-mono text-[12px] uppercase tracking-widest text-primary-foreground shadow-[0_4px_20px_-4px_var(--glow)] transition-transform hover:scale-105"
+      >
+        ← back to studio
+      </Link>
     </div>
   );
 }
