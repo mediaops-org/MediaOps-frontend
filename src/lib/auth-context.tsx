@@ -25,12 +25,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchUser = useCallback(async () => {
     try {
-      const response = await apiFetch('/api/auth/me');
+      const response = await apiFetch('/api/users/me');
       if (response.ok) {
-        const user = await response.json();
-        setState({ 
-          user, 
-          isAuthenticated: true, 
+        const body = await response.json();
+        const user = body.data ?? body;
+        setState({
+          user,
+          isAuthenticated: true,
           isLoading: false,
           isProUser: user.plan === 'pro'
         });
