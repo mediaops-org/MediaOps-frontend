@@ -13,6 +13,11 @@ export const registerSchema = z
       .string()
       .min(2, "Name must be at least 2 characters")
       .regex(/^[^0-9]*$/, "Name cannot contain numbers"),
+    handle: z
+      .string()
+      .min(3, "Handle must be at least 3 characters")
+      .max(60, "Handle must be at most 60 characters")
+      .regex(/^[a-z0-9_]+$/, "Handle can only contain lowercase letters, numbers, and underscores"),
     email: z.string().email("Invalid email format"),
     password: z.string().min(8, "Password must be at least 8 characters"),
     confirmPassword: z.string().min(8, "Confirm password must be at least 8 characters"),

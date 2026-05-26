@@ -106,6 +106,22 @@ export function RegisterView() {
               )}
             </div>
             <div className="grid gap-2">
+              <Label htmlFor="handle" className="text-zinc-300">Handle</Label>
+              <div className="relative">
+                <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-zinc-500">@</span>
+                <Input
+                  id="handle"
+                  placeholder="your_handle"
+                  className="border-white/10 bg-white/5 pl-7 text-white placeholder:text-zinc-600 focus-visible:ring-zinc-700"
+                  {...register("handle")}
+                  disabled={isLoading}
+                />
+              </div>
+              {errors.handle && (
+                <p className="text-xs text-destructive">{errors.handle.message}</p>
+              )}
+            </div>
+            <div className="grid gap-2">
               <Label htmlFor="email" className="text-zinc-300">Email</Label>
               <Input
                 id="email"
