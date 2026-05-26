@@ -28,7 +28,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const response = await apiFetch('/api/users/me');
       if (response.ok) {
         const body = await response.json();
-        const user = body.data ?? body;
+        const raw = body.data ?? body;
+        const user = { ...raw, avatar: raw.avatar ?? raw.avatarUrl };
         setState({
           user,
           isAuthenticated: true,
