@@ -15,6 +15,7 @@ export function LoginView() {
   const { login } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [googleNotice, setGoogleNotice] = useState(false);
 
   const {
     register,
@@ -44,7 +45,7 @@ export function LoginView() {
   };
 
   const handleGoogleLogin = () => {
-    window.location.href = "/api/auth/oauth/google";
+    setGoogleNotice(true);
   };
 
   return (
@@ -89,6 +90,11 @@ export function LoginView() {
               </svg>
               Continue with Google
             </Button>
+            {googleNotice && (
+              <p className="text-center text-xs text-amber-400/80 border border-amber-500/20 bg-amber-500/5 rounded-md px-3 py-2">
+                Google sign-in is coming soon. Please use email or handle for now.
+              </p>
+            )}
           </div>
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
