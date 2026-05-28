@@ -214,15 +214,27 @@ export function CreateView({ session, onUpdate }: Props) {
 }
 
 function normalizeGeneratedReel(prompt: string, payload: any): Reel {
-  const generated = payload?.reel ?? payload?.data?.reel ?? payload?.job?.reel ?? payload ?? {};
+  const generated = payload?.data?.reel ?? payload?.reel ?? payload?.job?.reel ?? payload ?? {};
+  const response = payload?.data?.response ?? payload?.response ?? payload?.data?.job?.responsePayload ?? {};
   const title = typeof generated.title === "string" && generated.title.trim() ? generated.title : prompt;
-  const duration = formatDuration(generated.duration ?? generated.durationSeconds ?? 15);
+  const duration = formatDuration(
+    generated.duration ?? generated.durationSeconds ?? generated.runtime ?? response?.duration ?? 15
+  );
+  const hue =
+    typeof generated.thumbnailHue === "number"
+      ? generated.thumbnailHue
+      : hashToHue(title || prompt || generated.artifactPath || generated.videoUrl || "generated-reel");
+  const videoUrl =
+    generated.videoUrl ?? generated.artifactPath ?? generated.finalVideoPath ?? response?.final_video_path ?? response?.captioned_video_path;
 
   return {
     id: generated.id ?? `r${Date.now()}`,
     title: title.length > 0 ? title : "Generated Reel",
     duration,
-    thumbnailHue: generated.thumbnailHue ?? hashToHue(title || prompt),
+    thumbnailHue: hue,
+    videoUrl,
+    artifactPath: generated.artifactPath ?? generated.videoUrl ?? response?.final_video_path,
+    thumbnailUrl: generated.thumbnailUrl ?? null,
     published: Boolean(generated.published),
     origin: generated.origin ?? "prompt",
   };

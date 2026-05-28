@@ -6,6 +6,9 @@ export type Reel = {
   title: string;
   duration: string;
   thumbnailHue: number; // for visual variety
+  videoUrl?: string;
+  artifactPath?: string;
+  thumbnailUrl?: string | null;
   creator?: { name: string; handle: string; avatarHue: number };
   tags?: string[];
   published?: boolean;

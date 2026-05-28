@@ -8,7 +8,8 @@ type Props = {
 };
 
 export function ReelCard({ reel, showCreator, compact }: Props) {
-  const hue = reel.thumbnailHue;
+  const hue = Number.isFinite(reel.thumbnailHue) ? reel.thumbnailHue : 220;
+  const hasPlayableVideo = typeof reel.videoUrl === "string" && /^https?:\/\//i.test(reel.videoUrl);
   return (
     <div
       className="card-hover group relative overflow-hidden rounded-xl border border-border bg-card"
@@ -21,6 +22,24 @@ export function ReelCard({ reel, showCreator, compact }: Props) {
           background: `radial-gradient(circle at 30% 30%, oklch(0.45 0.18 ${hue}) 0%, oklch(0.18 0.04 ${hue + 20}) 60%, oklch(0.12 0.02 260) 100%)`,
         }}
       >
+        {hasPlayableVideo && (
+          <video
+            className="absolute inset-0 h-full w-full object-cover opacity-90"
+            src={reel.videoUrl}
+            playsInline
+            muted
+            controls={false}
+            autoPlay={false}
+            preload="metadata"
+          />
+        )}
+        {!hasPlayableVideo && reel.thumbnailUrl && (
+          <img
+            className="absolute inset-0 h-full w-full object-cover opacity-90"
+            src={reel.thumbnailUrl}
+            alt={reel.title}
+          />
+        )}
         {/* Shimmer wash */}
         <div className="absolute inset-0 opacity-40 mix-blend-overlay shimmer" />
         {/* Grid overlay */}
@@ -43,7 +62,7 @@ export function ReelCard({ reel, showCreator, compact }: Props) {
         </div>
         {/* Duration badge */}
         <div className="absolute bottom-2 right-2 rounded-md border border-white/10 bg-black/60 px-2 py-0.5 font-mono text-[10px] tracking-wider text-white/90 backdrop-blur">
-          {reel.duration}
+          {reel.duration || "0:15"}
         </div>
       </div>
 
@@ -65,7 +84,7 @@ export function ReelCard({ reel, showCreator, compact }: Props) {
           <div className="mt-3 flex items-center gap-2">
             <button className="inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary/60 px-2.5 py-1 font-mono text-[11px] text-foreground transition-colors hover:border-primary/40 hover:text-primary">
               <Download className="h-3 w-3" />
-              Download
+              {reel.artifactPath ? "Open path" : "Download"}
             </button>
             <button className="inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary/60 px-2.5 py-1 font-mono text-[11px] text-foreground transition-colors hover:border-primary/40 hover:text-primary">
               <Share2 className="h-3 w-3" />
