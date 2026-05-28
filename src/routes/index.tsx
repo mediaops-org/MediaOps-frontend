@@ -9,12 +9,11 @@ import { YoutubeShortsView } from "@/components/YoutubeShortsView";
 import { ProtectedRoute } from "@/components/AuthGuards";
 import {
   initialSessions,
-  initialAutopilotJobs,
   newSession,
   type Reel,
   type Session,
 } from "@/lib/mock-data";
-import type { AutopilotJob, View } from "@/lib/types";
+import type { View } from "@/lib/types";
 
 export const Route = createFileRoute("/")({
   component: App,
@@ -24,7 +23,6 @@ function App() {
   const [view, setView] = useState<View>("create");
   const [sessions, setSessions] = useState<Session[]>(initialSessions);
   const [activeId, setActiveId] = useState<string>(initialSessions[initialSessions.length - 1].id);
-  const [jobs, setJobs] = useState<AutopilotJob[]>(initialAutopilotJobs);
 
   const active = useMemo(
     () => sessions.find((s) => s.id === activeId) ?? sessions[0],
@@ -61,10 +59,6 @@ function App() {
     );
   };
 
-  const createJob = (j: AutopilotJob) => setJobs((prev) => [j, ...prev]);
-  const toggleJob = (id: string) =>
-    setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, active: !j.active } : j)));
-
   return (
     <ProtectedRoute>
       <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
@@ -76,9 +70,7 @@ function App() {
             <LibraryView sessions={sessions} onOpen={openSession} onUpdateReel={updateReel} />
           )}
           {view === "youtube" && <YoutubeShortsView />}
-          {view === "autopilot" && (
-            <AutopilotView jobs={jobs} onCreate={createJob} onToggle={toggleJob} />
-          )}
+          {view === "autopilot" && <AutopilotView />}
         </main>
       </div>
     </ProtectedRoute>

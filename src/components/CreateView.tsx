@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowUp, Pencil } from "lucide-react";
 import { ReelCard } from "./ReelCard";
-import { generateMockReel, type Message, type Session } from "@/lib/mock-data";
+import apiFetch from "@/lib/api";
+import { type Message, type Reel, type Session } from "@/lib/mock-data";
 
 type Props = {
   session: Session;
@@ -11,6 +12,7 @@ type Props = {
 export function CreateView({ session, onUpdate }: Props) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(session.title);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -29,13 +31,39 @@ export function CreateView({ session, onUpdate }: Props) {
     onUpdate(next);
     setInput("");
     setLoading(true);
+    setError(null);
 
-    setTimeout(() => {
-      const reel = generateMockReel(text);
-      const aiMsg: Message = { id: "a" + Date.now(), role: "ai", reel, createdAt: Date.now() };
-      onUpdate({ ...next, messages: [...next.messages, aiMsg] });
-      setLoading(false);
-    }, 2000);
+    void (async () => {
+      try {
+        const response = await apiFetch("/api/generation/prompt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            topic: text,
+            sessionId: session.id,
+            limit: 1,
+            generate_video: true,
+            save_to_disk: true,
+          }),
+        });
+
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          throw new Error(body.message || `Generation failed with status ${response.status}`);
+        }
+
+        const body = await response.json();
+        const reel = normalizeGeneratedReel(text, body);
+        const aiMsg: Message = { id: "a" + Date.now(), role: "ai", reel, createdAt: Date.now() };
+        onUpdate({ ...next, messages: [...next.messages, aiMsg] });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Generation failed";
+        setError(message);
+        onUpdate(next);
+      } finally {
+        setLoading(false);
+      }
+    })();
   };
 
   const commitTitle = () => {
@@ -147,6 +175,11 @@ export function CreateView({ session, onUpdate }: Props) {
       {/* Input */}
       <div className="shrink-0 border-t border-border bg-background/60 px-6 py-4 backdrop-blur-xl">
         <div className="mx-auto max-w-3xl">
+          {error && (
+            <div className="mb-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {error}
+            </div>
+          )}
           <div className="group relative rounded-2xl border border-border bg-card transition-colors focus-within:border-primary/60 focus-within:shadow-[0_0_0_4px_color-mix(in_oklab,var(--glow)_15%,transparent)]">
             <textarea
               value={input}
@@ -178,4 +211,35 @@ export function CreateView({ session, onUpdate }: Props) {
       </div>
     </div>
   );
+}
+
+function normalizeGeneratedReel(prompt: string, payload: any): Reel {
+  const generated = payload?.reel ?? payload?.data?.reel ?? payload?.job?.reel ?? payload ?? {};
+  const title = typeof generated.title === "string" && generated.title.trim() ? generated.title : prompt;
+  const duration = formatDuration(generated.duration ?? generated.durationSeconds ?? 15);
+
+  return {
+    id: generated.id ?? `r${Date.now()}`,
+    title: title.length > 0 ? title : "Generated Reel",
+    duration,
+    thumbnailHue: generated.thumbnailHue ?? hashToHue(title || prompt),
+    published: Boolean(generated.published),
+    origin: generated.origin ?? "prompt",
+  };
+}
+
+function formatDuration(value: unknown) {
+  if (typeof value === "string" && value.includes(":")) return value;
+  const seconds = typeof value === "number" ? Math.max(1, Math.floor(value)) : 15;
+  const minutes = Math.floor(seconds / 60);
+  const remaining = seconds % 60;
+  return `${minutes}:${String(remaining).padStart(2, "0")}`;
+}
+
+function hashToHue(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) % 360;
+  }
+  return Math.abs(hash);
 }

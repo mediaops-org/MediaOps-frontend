@@ -3,6 +3,17 @@ import { useNavigate } from "@tanstack/react-router";
 import type { User, AuthState, LoginInput, RegisterInput } from "./auth-types";
 import apiFetch from './api';
 
+function normalizeUser(payload: any): User {
+  const raw = payload?.user ?? payload?.data?.user ?? payload?.data ?? payload ?? {};
+  const plan = raw.plan === 'pro' ? 'pro' : 'free';
+
+  return {
+    ...raw,
+    avatar: raw.avatar ?? raw.avatarUrl,
+    plan,
+  };
+}
+
 interface AuthContextType extends AuthState {
   login: (data: LoginInput) => Promise<void>;
   register: (data: RegisterInput) => Promise<void>;
@@ -27,13 +38,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const response = await apiFetch('/api/users/me');
       if (response.ok) {
         const body = await response.json();
-        const raw = body.data ?? body;
-        const user = { ...raw, avatar: raw.avatar ?? raw.avatarUrl };
+        const user = normalizeUser(body);
         setState({
           user,
           isAuthenticated: true,
           isLoading: false,
-          isProUser: user.plan === 'pro'
+          isProUser: user.plan === 'pro',
         });
       } else {
         setState({ user: null, isAuthenticated: false, isLoading: false, isProUser: false });
@@ -44,15 +54,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const persistAuthToken = (body: any) => {
+    const token = body?.token ?? body?.data?.token;
+    if (token) localStorage.setItem('token', token);
+  };
+
   useEffect(() => {
     fetchUser();
   }, [fetchUser]);
 
   const login = async (data: LoginInput) => {
+    const payload = data.identifier.includes('@')
+      ? { email: data.identifier, password: data.password }
+      : { handle: data.identifier, password: data.password };
+
     const response = await apiFetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     }); 
 
     if (!response.ok) {
@@ -61,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const body = await response.json();
-    if (body.data?.token) localStorage.setItem('token', body.data.token);
+    persistAuthToken(body);
 
     await fetchUser();
     navigate({ to: '/' });
@@ -82,7 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const body = await response.json();
-    if (body.data?.token) localStorage.setItem('token', body.data.token);
+    persistAuthToken(body);
 
     await fetchUser();
     navigate({ to: '/' });

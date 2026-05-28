@@ -18,8 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Link } from "@tanstack/react-router";
 
-// Set MOCK_MODE = true to bypass the real API and simulate job progression locally
-const MOCK_MODE = false;
+const MOCK_MODE = import.meta.env.VITE_ENABLE_VIDEO_BACKEND !== "true";
 
 export const DEFAULT_COUNT = 3;
 export const DEFAULT_CLIP_DURATION = 15;

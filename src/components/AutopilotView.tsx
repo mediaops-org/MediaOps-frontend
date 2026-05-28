@@ -1,70 +1,181 @@
-import { useMemo, useState } from "react";
-import { Plus, Zap, X, Calendar, Repeat, Hash, Activity, Lock } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Activity, Calendar, Check, ChevronRight, Clock3, Loader2, Lock, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useUpgradeModal } from "@/components/UpgradeModal";
-import type {
-  AutopilotJob,
-  AutopilotTopic,
-  ScrapingFrequency,
-  GenerationFrequency,
-} from "@/lib/types";
-import { SCRAPING_RANK, GENERATION_RANK } from "@/lib/types";
+import apiFetch from "@/lib/api";
 
-type Props = {
-  jobs: AutopilotJob[];
-  onCreate: (job: AutopilotJob) => void;
-  onToggle: (id: string) => void;
-};
+const PRESET_TOPICS = ["Tech", "News", "Sport", "Fashion", "Food"] as const;
 
-const TOPICS: AutopilotTopic[] = ["Sport", "News", "Tech", "Fashion", "Food"];
-const SCRAPE: ScrapingFrequency[] = ["Hourly", "Daily", "Weekly"];
-const GEN: GenerationFrequency[] = ["Daily", "Weekly", "Monthly"];
-
-function timeAgo(t: number) {
-  const diff = Date.now() - t;
-  const h = Math.floor(diff / 36e5);
-  if (h < 1) return "just now";
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+interface PlannerJobRecord {
+  id: string;
+  kind?: string;
+  status?: string;
+  serviceName?: string;
+  plannerJobId?: string | null;
+  serviceJobId?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  requestPayload?: {
+    topics?: string[];
+    sources?: string;
+    top?: number;
+    rank?: boolean;
+    use_cache?: boolean;
+    save?: boolean;
+    output_dir?: string;
+    execute_worker?: boolean;
+    worker_url?: string;
+    schedule_cron?: string;
+  };
+  responsePayload?: Record<string, unknown>;
+  errorMessage?: string | null;
 }
 
-// Compare scrape vs gen — gen cannot be faster than scrape.
-// Map both to a hours-per-cycle approximation.
-const SCRAPE_HOURS: Record<ScrapingFrequency, number> = { Hourly: 1, Daily: 24, Weekly: 168 };
-const GEN_HOURS: Record<GenerationFrequency, number> = { Daily: 24, Weekly: 168, Monthly: 720 };
-
-function genFasterThanScrape(scrape: ScrapingFrequency, gen: GenerationFrequency) {
-  return GEN_HOURS[gen] < SCRAPE_HOURS[scrape];
+function normalizeJobs(payload: any): PlannerJobRecord[] {
+  const raw = payload?.data ?? payload ?? [];
+  return Array.isArray(raw) ? raw : [];
 }
 
-export function AutopilotView({ jobs, onCreate, onToggle }: Props) {
-  const [open, setOpen] = useState(false);
+function getJobTitle(job: PlannerJobRecord) {
+  const topics = job.requestPayload?.topics?.filter(Boolean) ?? [];
+  if (topics.length > 0) return topics.join(", ");
+  return job.plannerJobId || job.serviceJobId || job.id;
+}
+
+function formatDate(value?: string) {
+  if (!value) return "just now";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "just now";
+  return date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}
+
+export function AutopilotView() {
   const { isProUser } = useAuth();
   const { open: openUpgrade } = useUpgradeModal();
-  const sorted = useMemo(() => [...jobs].sort((a, b) => b.createdAt - a.createdAt), [jobs]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [jobs, setJobs] = useState<PlannerJobRecord[]>([]);
+  const [isFormOpen, setIsFormOpen] = useState(false);
 
-  return (
-    <div className="relative flex h-full flex-col">
-      {!isProUser && (
+  const [topicsText, setTopicsText] = useState("Tech, News");
+  const [sources, setSources] = useState("");
+  const [top, setTop] = useState(5);
+  const [rank, setRank] = useState(true);
+  const [useCache, setUseCache] = useState(true);
+  const [save, setSave] = useState(true);
+  const [outputDir, setOutputDir] = useState("");
+  const [executeWorker, setExecuteWorker] = useState(true);
+  const [workerUrl, setWorkerUrl] = useState("");
+  const [scheduleCron, setScheduleCron] = useState("0 9 * * *");
+
+  const activeJobs = useMemo(() => jobs.filter((job) => job.status !== "failed"), [jobs]);
+
+  const fetchJobs = async () => {
+    try {
+      const response = await apiFetch("/api/generation/jobs?kind=planner");
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.message || `Failed to load planner jobs (${response.status})`);
+      }
+      const body = await response.json();
+      setJobs(normalizeJobs(body));
+    } catch (fetchError) {
+      const message = fetchError instanceof Error ? fetchError.message : "Failed to load planner jobs";
+      setError(message);
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      setLoading(true);
+      await fetchJobs();
+      if (mounted) setLoading(false);
+    })();
+
+    return () => {
+      mounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const refresh = async () => {
+    setRefreshing(true);
+    setError(null);
+    try {
+      await fetchJobs();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const submitPlan = async () => {
+    const topics = topicsText
+      .split(/[\n,]/g)
+      .map((topic) => topic.trim())
+      .filter(Boolean);
+
+    if (topics.length === 0 || submitting) return;
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      const response = await apiFetch("/api/generation/planner", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topics,
+          sources: sources.trim() || undefined,
+          top,
+          rank,
+          use_cache: useCache,
+          save,
+          output_dir: outputDir.trim() || undefined,
+          execute_worker: executeWorker,
+          worker_url: workerUrl.trim() || undefined,
+          schedule_cron: scheduleCron.trim() || undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.message || `Planner request failed (${response.status})`);
+      }
+
+      setIsFormOpen(false);
+      await fetchJobs();
+    } catch (submitError) {
+      const message = submitError instanceof Error ? submitError.message : "Planner request failed";
+      setError(message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!isProUser) {
+    return (
+      <div className="relative flex h-full flex-col">
         <div className="absolute inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-md bg-black/10">
           <div className="w-full max-w-md rounded-2xl border border-amber-500/20 bg-black/60 p-8 text-center backdrop-blur-2xl shadow-[0_0_50px_rgba(245,158,11,0.1)]">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500 ring-1 ring-amber-500/50">
               <Lock className="h-8 w-8 animate-pulse" />
             </div>
-            <h2 className="text-2xl font-bold text-white">Unlock AI Autopilot</h2>
+            <h2 className="text-2xl font-bold text-white">Unlock Planner</h2>
             <p className="mt-3 text-sm text-zinc-400">
-              Transform your ideas into cinematic reels instantly with our AI-powered autopilot. Available on Pro.
+              Plan recurring video generation, connect sources, and schedule the worker from one place. This page is available on Pro.
             </p>
             <div className="mt-8 space-y-3">
               <ul className="mb-6 space-y-2 text-left">
                 {[
-                  "Scheduled Recurring Generation",
-                  "Automated Topic Research",
-                  "Priority Video Rendering",
-                ].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-[13px] text-zinc-300">
-                    <Zap className="h-3 w-3 text-amber-500" />
-                    {f}
+                  "Plan video topics in batches",
+                  "Set sources and scheduling",
+                  "Launch worker execution automatically",
+                ].map((feature) => (
+                  <li key={feature} className="flex items-center gap-2 text-[13px] text-zinc-300">
+                    <Sparkles className="h-3 w-3 text-amber-500" />
+                    {feature}
                   </li>
                 ))}
               </ul>
@@ -74,123 +185,321 @@ export function AutopilotView({ jobs, onCreate, onToggle }: Props) {
               >
                 Upgrade to Pro
               </button>
-              <button
-                className="w-full text-xs text-zinc-500 hover:text-white transition-colors"
-                onClick={() => {
-                  // Fallback for click-through if they manage to see the background
-                }}
-              >
-                Learn more about Pro
-              </button>
             </div>
           </div>
         </div>
-      )}
+
+        <header className="flex h-16 shrink-0 items-center justify-between border-b border-border px-6">
+          <div>
+            <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+              Planner
+              <span className="rounded-md border border-primary/40 bg-primary/15 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest text-primary">
+                Pro
+              </span>
+            </h1>
+            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+              plan video creation · locked for free users
+            </p>
+          </div>
+        </header>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative flex h-full flex-col">
       <header className="flex h-16 shrink-0 items-center justify-between border-b border-border px-6">
         <div>
           <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-            Autopilot Jobs
+            Planner
             <span className="rounded-md border border-primary/40 bg-primary/15 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest text-primary">
               Pro
             </span>
           </h1>
           <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-            scheduled reel generation · {jobs.filter((j) => j.active).length}/{jobs.length} active
+            plan video creation · {activeJobs.length}/{jobs.length} active
           </p>
         </div>
-        <button
-          onClick={() => setOpen(true)}
-          className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-3 font-mono text-[11px] uppercase tracking-widest text-primary-foreground shadow-[0_4px_20px_-4px_var(--glow)] transition-transform hover:scale-105"
-        >
-          <Plus className="h-4 w-4" />
-          New Job
-        </button>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={refresh}
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-card px-3 font-mono text-[11px] uppercase tracking-widest text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+          >
+            {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            Refresh
+          </button>
+          <button
+            onClick={() => setIsFormOpen((current) => !current)}
+            className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-3 font-mono text-[11px] uppercase tracking-widest text-primary-foreground shadow-[0_4px_20px_-4px_var(--glow)] transition-transform hover:scale-105"
+          >
+            <Plus className="h-4 w-4" />
+            New Plan
+          </button>
+        </div>
       </header>
 
       <div className="flex-1 overflow-y-auto px-6 py-6">
-        <div className="mx-auto max-w-5xl">
-          {sorted.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-24 text-center">
-              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 ring-1 ring-primary/30">
-                <Zap className="h-5 w-5 text-primary" />
+        <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+          <section className="rounded-2xl border border-border bg-card/80 p-5 shadow-[0_24px_70px_-40px_rgba(0,0,0,0.6)]">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold">Planner jobs</h2>
+                <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                  backend-generated plans for future video creation
+                </p>
               </div>
-              <h2 className="text-lg font-semibold">No jobs yet</h2>
-              <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-                Schedule recurring reel generation around topics you care about. Reels land in your Library tagged as Autopilot.
-              </p>
-              <button
-                onClick={() => setOpen(true)}
-                className="mt-5 inline-flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 font-mono text-[11px] uppercase tracking-widest text-primary hover:bg-primary/20"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Create your first job
-              </button>
+              <div className="rounded-md border border-primary/30 bg-primary/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest text-primary">
+                Planner Agent
+              </div>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {sorted.map((j) => (
-                <div
-                  key={j.id}
-                  className="card-hover fade-in flex flex-col gap-3 rounded-xl border border-border bg-card p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest text-primary">
-                          <Zap className="h-2.5 w-2.5" />
-                          {j.topic}
-                        </span>
-                        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                          {timeAgo(j.createdAt)}
-                        </span>
-                      </div>
-                      <h3 className="mt-2 truncate text-sm font-medium">{j.topic} digest</h3>
-                    </div>
 
-                    {/* Active toggle */}
-                    <button
-                      onClick={() => onToggle(j.id)}
-                      className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors ${
-                        j.active
-                          ? "border-primary/60 bg-primary/30"
-                          : "border-border bg-secondary"
-                      }`}
-                      aria-label={j.active ? "Deactivate" : "Activate"}
+            {loading ? (
+              <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-dashed border-border bg-background/40">
+                <div className="flex items-center gap-3 text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  Loading planner jobs...
+                </div>
+              </div>
+            ) : jobs.length === 0 ? (
+              <div className="flex min-h-[280px] flex-col items-center justify-center rounded-xl border border-dashed border-border bg-background/40 text-center">
+                <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 ring-1 ring-primary/30">
+                  <Calendar className="h-5 w-5 text-primary" />
+                </div>
+                <h3 className="text-lg font-semibold">No planner jobs yet</h3>
+                <p className="mt-2 max-w-md text-sm text-muted-foreground">
+                  Create your first plan to tell the planner what topics to track, where to fetch them from, and when to run the worker.
+                </p>
+                <button
+                  onClick={() => setIsFormOpen(true)}
+                  className="mt-5 inline-flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 font-mono text-[11px] uppercase tracking-widest text-primary hover:bg-primary/20"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Create plan
+                </button>
+              </div>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2">
+                {jobs.map((job) => {
+                  const topics = job.requestPayload?.topics?.join(", ") || "Untitled plan";
+                  return (
+                    <article
+                      key={job.id}
+                      className="rounded-xl border border-border bg-background/50 p-4 transition-shadow hover:shadow-[0_20px_40px_-30px_rgba(0,0,0,0.8)]"
                     >
-                      <span
-                        className={`absolute top-0.5 h-4 w-4 rounded-full transition-all ${
-                          j.active
-                            ? "left-[22px] bg-primary shadow-[0_0_10px_var(--glow)]"
-                            : "left-0.5 bg-muted-foreground"
-                        }`}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest text-primary">
+                              <Sparkles className="h-2.5 w-2.5" />
+                              {job.status || "pending"}
+                            </span>
+                            <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                              {formatDate(job.createdAt)}
+                            </span>
+                          </div>
+                          <h3 className="mt-2 truncate text-sm font-semibold text-white">{topics}</h3>
+                        </div>
+                        <div className="rounded-md border border-border bg-card px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                          {job.kind || "planner"}
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-2 gap-2 text-[11px]">
+                        <Detail icon={<Activity className="h-3 w-3" />} label="planner id" value={job.plannerJobId || job.id} />
+                        <Detail icon={<Clock3 className="h-3 w-3" />} label="worker" value={job.serviceJobId || "waiting"} />
+                        <Detail icon={<Calendar className="h-3 w-3" />} label="cron" value={job.requestPayload?.schedule_cron || "not set"} />
+                        <Detail icon={<Check className="h-3 w-3" />} label="save" value={job.requestPayload?.save ? "yes" : "no"} accent={Boolean(job.requestPayload?.save)} />
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between border-t border-border/60 pt-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                        <span>{job.requestPayload?.execute_worker ? "worker enabled" : "worker skipped"}</span>
+                        <button
+                          onClick={() => setIsFormOpen(true)}
+                          className="inline-flex items-center gap-1 text-primary transition-colors hover:text-primary/80"
+                        >
+                          New plan
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+
+                      {job.errorMessage && (
+                        <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                          {job.errorMessage}
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          <aside className="space-y-4">
+            <section className="rounded-2xl border border-border bg-card/80 p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold">Plan a new batch</h2>
+                  <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                    create a planner job for video generation
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsFormOpen((current) => !current)}
+                  className="rounded-md border border-border px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                >
+                  {isFormOpen ? "Hide" : "Open"}
+                </button>
+              </div>
+
+              {isFormOpen && (
+                <div className="mt-4 space-y-4">
+                  <Field label="Topics">
+                    <textarea
+                      value={topicsText}
+                      onChange={(event) => setTopicsText(event.target.value)}
+                      rows={3}
+                      placeholder="Tech, News, Sport"
+                      className="w-full rounded-xl border border-border bg-background/60 px-3 py-2 text-sm outline-none transition-colors focus:border-primary"
+                    />
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {PRESET_TOPICS.map((topic) => (
+                        <button
+                          key={topic}
+                          onClick={() => setTopicsText(topic)}
+                          className="rounded-md border border-border bg-card px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                        >
+                          {topic}
+                        </button>
+                      ))}
+                    </div>
+                  </Field>
+
+                  <Field label="Sources">
+                    <input
+                      value={sources}
+                      onChange={(event) => setSources(event.target.value)}
+                      placeholder="RSS feed, site, or notes"
+                      className="w-full rounded-xl border border-border bg-background/60 px-3 py-2 text-sm outline-none transition-colors focus:border-primary"
+                    />
+                  </Field>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Top">
+                      <input
+                        type="number"
+                        min={1}
+                        max={20}
+                        value={top}
+                        onChange={(event) => setTop(Math.max(1, Number(event.target.value) || 1))}
+                        className="w-full rounded-xl border border-border bg-background/60 px-3 py-2 text-sm outline-none transition-colors focus:border-primary"
                       />
+                    </Field>
+                    <Field label="Cron">
+                      <input
+                        value={scheduleCron}
+                        onChange={(event) => setScheduleCron(event.target.value)}
+                        placeholder="0 9 * * *"
+                        className="w-full rounded-xl border border-border bg-background/60 px-3 py-2 text-sm outline-none transition-colors focus:border-primary"
+                      />
+                    </Field>
+                  </div>
+
+                  <ToggleRow label="Rank results" value={rank} onChange={setRank} />
+                  <ToggleRow label="Use cache" value={useCache} onChange={setUseCache} />
+                  <ToggleRow label="Save output" value={save} onChange={setSave} />
+                  <ToggleRow label="Execute worker" value={executeWorker} onChange={setExecuteWorker} />
+
+                  <Field label="Output dir">
+                    <input
+                      value={outputDir}
+                      onChange={(event) => setOutputDir(event.target.value)}
+                      placeholder="/tmp/mediaops/plans"
+                      className="w-full rounded-xl border border-border bg-background/60 px-3 py-2 text-sm outline-none transition-colors focus:border-primary"
+                    />
+                  </Field>
+
+                  <Field label="Worker URL">
+                    <input
+                      value={workerUrl}
+                      onChange={(event) => setWorkerUrl(event.target.value)}
+                      placeholder="http://localhost:8001/worker"
+                      className="w-full rounded-xl border border-border bg-background/60 px-3 py-2 text-sm outline-none transition-colors focus:border-primary"
+                    />
+                  </Field>
+
+                  {error && (
+                    <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                      {error}
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={submitPlan}
+                      disabled={submitting}
+                      className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 font-mono text-[11px] uppercase tracking-widest text-primary-foreground shadow-[0_4px_20px_-4px_var(--glow)] transition-transform hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                      Create planner job
+                    </button>
+                    <button
+                      onClick={() => setIsFormOpen(false)}
+                      className="rounded-lg border border-border px-4 py-2 font-mono text-[11px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
+                    >
+                      Cancel
                     </button>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    <Stat icon={<Repeat className="h-3 w-3" />} label="scrape" value={j.scrapingFrequency} />
-                    <Stat icon={<Calendar className="h-3 w-3" />} label="generate" value={j.generationFrequency} />
-                    <Stat icon={<Hash className="h-3 w-3" />} label="reels/cycle" value={String(j.reelsPerCycle)} />
-                    <Stat
-                      icon={<Activity className="h-3 w-3" />}
-                      label="status"
-                      value={j.active ? "Active" : "Inactive"}
-                      accent={j.active}
-                    />
-                  </div>
                 </div>
-              ))}
-            </div>
-          )}
+              )}
+            </section>
+
+            <section className="rounded-2xl border border-border bg-card/80 p-5">
+              <h2 className="text-base font-semibold">Planner workflow</h2>
+              <div className="mt-3 space-y-3 text-sm text-muted-foreground">
+                <p>1. Collect topics and source hints.</p>
+                <p>2. Send them to the planner agent.</p>
+                <p>3. Planner dispatches the worker and stores the result in Library.</p>
+              </div>
+            </section>
+          </aside>
         </div>
       </div>
-
-      {open && <CreateJobModal onClose={() => setOpen(false)} onCreate={onCreate} />}
     </div>
   );
 }
 
-function Stat({
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <div className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{label}</div>
+      {children}
+    </label>
+  );
+}
+
+function ToggleRow({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!value)}
+      className="flex w-full items-center justify-between rounded-xl border border-border bg-background/40 px-3 py-2.5 text-left transition-colors hover:border-primary/40"
+    >
+      <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{label}</span>
+      <span className={`text-sm ${value ? "text-primary" : "text-muted-foreground"}`}>{value ? "On" : "Off"}</span>
+    </button>
+  );
+}
+
+function Detail({
   icon,
   label,
   value,
@@ -207,165 +516,7 @@ function Stat({
         {icon}
         {label}
       </span>
-      <span className={`font-mono text-[11px] ${accent ? "text-primary" : "text-foreground"}`}>{value}</span>
-    </div>
-  );
-}
-
-function CreateJobModal({
-  onClose,
-  onCreate,
-}: {
-  onClose: () => void;
-  onCreate: (j: AutopilotJob) => void;
-}) {
-  const [topic, setTopic] = useState<AutopilotTopic>("Tech");
-  const [scrape, setScrape] = useState<ScrapingFrequency>("Daily");
-  const [gen, setGen] = useState<GenerationFrequency>("Daily");
-  const [count, setCount] = useState(3);
-
-  const freqError = genFasterThanScrape(scrape, gen)
-    ? "Generation frequency cannot be faster than scraping frequency."
-    : null;
-  const countError =
-    count < 1 || count > 20 || !Number.isFinite(count) ? "Must be between 1 and 20." : null;
-  const valid = !freqError && !countError;
-
-  const submit = () => {
-    if (!valid) return;
-    onCreate({
-      id: "ap-job-" + Math.random().toString(36).slice(2, 9),
-      topic,
-      scrapingFrequency: scrape,
-      generationFrequency: gen,
-      reelsPerCycle: count,
-      active: true,
-      createdAt: Date.now(),
-    });
-    onClose();
-  };
-
-  return (
-    <div
-      className="fade-in fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <div>
-            <h2 className="text-base font-semibold">New Autopilot Job</h2>
-            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              schedule recurring reels
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="space-y-5 px-5 py-5">
-          <Field label="Topic">
-            <Pills
-              options={TOPICS}
-              value={topic}
-              onChange={(v) => setTopic(v as AutopilotTopic)}
-            />
-          </Field>
-
-          <Field label="Scraping frequency">
-            <Pills options={SCRAPE} value={scrape} onChange={(v) => setScrape(v as ScrapingFrequency)} />
-          </Field>
-
-          <Field label="Generation frequency" error={freqError}>
-            <Pills options={GEN} value={gen} onChange={(v) => setGen(v as GenerationFrequency)} />
-          </Field>
-
-          <Field label="Reels per cycle" error={countError}>
-            <input
-              type="number"
-              min={1}
-              max={20}
-              value={count}
-              onChange={(e) => setCount(parseInt(e.target.value || "0", 10))}
-              className="w-28 rounded-md border border-border bg-secondary/60 px-3 py-2 text-sm outline-none transition-colors focus:border-primary"
-            />
-          </Field>
-        </div>
-
-        <div className="flex items-center justify-end gap-2 border-t border-border bg-background/40 px-5 py-3">
-          <button
-            onClick={onClose}
-            className="rounded-md px-3 py-1.5 font-mono text-[11px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={submit}
-            disabled={!valid}
-            className="rounded-md bg-primary px-4 py-1.5 font-mono text-[11px] uppercase tracking-widest text-primary-foreground shadow-[0_4px_20px_-4px_var(--glow)] transition-all hover:scale-[1.03] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:scale-100"
-          >
-            Save Job
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  error,
-  children,
-}: {
-  label: string;
-  error?: string | null;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <div className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-        {label}
-      </div>
-      {children}
-      {error && (
-        <div className="mt-2 rounded-md border border-destructive/40 bg-destructive/10 px-2.5 py-1.5 font-mono text-[10px] text-destructive">
-          {error}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Pills({
-  options,
-  value,
-  onChange,
-}: {
-  options: readonly string[];
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {options.map((o) => (
-        <button
-          key={o}
-          onClick={() => onChange(o)}
-          className={`rounded-md border px-2.5 py-1.5 font-mono text-[11px] transition-all ${
-            value === o
-              ? "border-primary/60 bg-primary/15 text-primary shadow-[0_0_0_1px_var(--glow)]"
-              : "border-border bg-secondary/40 text-muted-foreground hover:border-primary/40 hover:text-foreground"
-          }`}
-        >
-          {o}
-        </button>
-      ))}
+      <span className={`truncate font-mono text-[11px] ${accent ? "text-primary" : "text-foreground"}`}>{value}</span>
     </div>
   );
 }

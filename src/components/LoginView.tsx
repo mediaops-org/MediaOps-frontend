@@ -29,14 +29,7 @@ export function LoginView() {
     setIsLoading(true);
     setError(null);
     try {
-      // The backend seed uses `handle` for seeded users. If the user typed an
-      // email (contains @) we send `{ email }`, otherwise we send `{ handle }`.
-      const identifier = (data as any).identifier as string;
-      const payload: Record<string, string> = identifier?.includes("@")
-        ? { email: identifier, password: data.password }
-        : { handle: identifier, password: data.password };
-
-      await login(payload as any);
+      await login(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
