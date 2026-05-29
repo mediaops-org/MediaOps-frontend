@@ -6,11 +6,15 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useNavigate, Link } from "@tanstack/react-router";
+import type { Session } from "@/lib/mock-data";
 
 type Props = {
   active: View;
+  activeSessionId?: string;
+  sessions: Session[];
   onChange: (v: View) => void;
   onNewSession: () => void;
+  onOpenSession: (id: string) => void;
 };
 
 const items: { id: View; label: string; icon: typeof Compass; pro?: boolean }[] = [
@@ -21,11 +25,12 @@ const items: { id: View; label: string; icon: typeof Compass; pro?: boolean }[] 
   { id: "autopilot", label: "Autopilot", icon: Zap, pro: true },
 ];
 
-export function Sidebar({ active, onChange, onNewSession }: Props) {
+export function Sidebar({ active, activeSessionId, sessions, onChange, onNewSession, onOpenSession }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const { user, isProUser, logout } = useAuth();
   const navigate = useNavigate();
   const w = collapsed ? "w-[68px]" : "w-[220px]";
+  const history = [...sessions].sort((a, b) => b.createdAt - a.createdAt);
 
   const handlePortalSession = async () => {
     try {
@@ -65,37 +70,78 @@ export function Sidebar({ active, onChange, onNewSession }: Props) {
           const Icon = it.icon;
           const isActive = active === it.id;
           return (
-            <button
-              key={it.id}
-              onClick={() => {
-                if (it.id === "create") onNewSession();
-                onChange(it.id);
-              }}
-              className={`group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all ${
-                isActive
-                  ? "bg-secondary text-foreground"
-                  : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-              }`}
-              title={collapsed ? it.label : undefined}
-            >
-              {isActive && (
-                <span className="absolute left-0 top-1/2 h-5 w-[2px] -translate-y-1/2 rounded-r bg-primary shadow-[0_0_10px_var(--glow)]" />
+            <div key={it.id}>
+              <button
+                onClick={() => {
+                  if (it.id === "create") onNewSession();
+                  onChange(it.id);
+                }}
+                className={`group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all ${
+                  isActive
+                    ? "bg-secondary text-foreground"
+                    : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                }`}
+                title={collapsed ? it.label : undefined}
+              >
+                {isActive && (
+                  <span className="absolute left-0 top-1/2 h-5 w-[2px] -translate-y-1/2 rounded-r bg-primary shadow-[0_0_10px_var(--glow)]" />
+                )}
+                <Icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? "text-primary" : ""}`} />
+                {!collapsed && (
+                  <span className="flex flex-1 items-center justify-between gap-2 font-mono text-[13px]">
+                    {it.label}
+                    {it.pro && (
+                      <span className="rounded border border-primary/40 bg-primary/15 px-1 py-0 font-mono text-[8px] uppercase tracking-widest text-primary">
+                        Pro
+                      </span>
+                    )}
+                  </span>
+                )}
+                {collapsed && it.pro && (
+                  <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_6px_var(--glow)]" />
+                )}
+              </button>
+
+              {it.id === "create" && !collapsed && (
+                <div className="mt-2 rounded-xl border border-border bg-card/40 p-2.5 shadow-[0_8px_24px_-18px_rgba(0,0,0,0.9)]">
+                  <div className="mb-2 flex items-center justify-between px-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                    <span>conv history</span>
+                    <span>{history.length}</span>
+                  </div>
+                  <div className="sidebar-scroll max-h-56 space-y-1.5 overflow-y-auto pr-1.5">
+                    {history.map((session) => {
+                      const isActiveSession = session.id === activeSessionId;
+                      const lastMessage = session.messages[session.messages.length - 1];
+                      const preview =
+                        lastMessage?.role === "user"
+                          ? lastMessage.text
+                          : lastMessage?.role === "ai"
+                            ? lastMessage.reel.title
+                            : "No messages yet";
+
+                      return (
+                        <button
+                          key={session.id}
+                          onClick={() => onOpenSession(session.id)}
+                          className={`w-full rounded-xl border px-3 py-2.5 text-left transition-all ${
+                            isActiveSession
+                              ? "border-primary/50 bg-primary/10 text-foreground shadow-[0_0_0_1px_color-mix(in_oklab,var(--glow)_20%,transparent)]"
+                              : "border-border bg-surface/40 text-muted-foreground hover:border-primary/30 hover:bg-surface/70 hover:text-foreground"
+                          }`}
+                        >
+                          <div className="truncate font-mono text-[12px] uppercase tracking-wider">
+                            {session.title}
+                          </div>
+                          <div className="mt-1 truncate text-[11px] normal-case tracking-normal text-muted-foreground/90">
+                            {preview}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
-              <Icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? "text-primary" : ""}`} />
-              {!collapsed && (
-                <span className="flex flex-1 items-center justify-between gap-2 font-mono text-[13px]">
-                  {it.label}
-                  {it.pro && (
-                    <span className="rounded border border-primary/40 bg-primary/15 px-1 py-0 font-mono text-[8px] uppercase tracking-widest text-primary">
-                      Pro
-                    </span>
-                  )}
-                </span>
-              )}
-              {collapsed && it.pro && (
-                <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_6px_var(--glow)]" />
-              )}
-            </button>
+            </div>
           );
         })}
 

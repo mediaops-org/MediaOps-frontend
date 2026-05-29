@@ -55,12 +55,22 @@ function App() {
     [sessions, activeId]
   );
 
-  const updateSession = (s: Session) => {
-    setSessions((prev) => prev.map((x) => (x.id === s.id ? s : x)));
+  const updateSession = (next: Session | ((current: Session) => Session)) => {
+    setSessions((prev) =>
+      prev.map((current) => {
+        const resolved = typeof next === "function" ? next(current) : next;
+        return current.id === resolved.id ? resolved : current;
+      })
+    );
   };
 
-  const persistSessionCreate = async () => {
+  const createSession = async () => {
     const draft = newSession();
+
+    setSessions((prev) => [...prev, draft]);
+    setActiveId(draft.id);
+    setView("create");
+
     try {
       const response = await apiFetch("/api/sessions", {
         method: "POST",
@@ -74,14 +84,10 @@ function App() {
 
       const body = await response.json();
       const session = normalizeSession(body?.data ?? body ?? draft);
-      setSessions((prev) => [...prev, session]);
+      setSessions((prev) => prev.map((current) => (current.id === draft.id ? session : current)));
       setActiveId(session.id);
-      setView("create");
     } catch (error) {
       console.error("Failed to create session:", error);
-      setSessions((prev) => [...prev, draft]);
-      setActiveId(draft.id);
-      setView("create");
     }
   };
 
@@ -120,7 +126,14 @@ function App() {
   return (
     <ProtectedRoute>
       <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
-        <Sidebar active={view} onChange={setView} onNewSession={persistSessionCreate} />
+        <Sidebar
+          active={view}
+          activeSessionId={active?.id}
+          sessions={sessions}
+          onChange={setView}
+          onNewSession={createSession}
+          onOpenSession={openSession}
+        />
         <main key={view} className="fade-in min-w-0 flex-1">
           {view === "create" && active && (
             <CreateView

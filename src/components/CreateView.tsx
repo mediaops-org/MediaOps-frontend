@@ -6,7 +6,7 @@ import { type Message, type Reel, type Session } from "@/lib/mock-data";
 
 type Props = {
   session: Session;
-  onUpdate: (s: Session) => void;
+  onUpdate: (updater: Session | ((current: Session) => Session)) => void;
   onPersistMessage: (sessionId: string, message: Message) => Promise<void>;
 };
 
@@ -17,6 +17,7 @@ export function CreateView({ session, onUpdate, onPersistMessage }: Props) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(session.title);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const messages = [...session.messages].sort(compareMessages);
 
   useEffect(() => setTitleDraft(session.title), [session.id, session.title]);
 
@@ -28,8 +29,7 @@ export function CreateView({ session, onUpdate, onPersistMessage }: Props) {
     const text = input.trim();
     if (!text || loading) return;
     const userMsg: Message = { id: "u" + Date.now(), role: "user", text, createdAt: Date.now() };
-    const next: Session = { ...session, messages: [...session.messages, userMsg] };
-    onUpdate(next);
+    onUpdate((current) => ({ ...current, messages: [...current.messages, userMsg] }));
     setInput("");
     setLoading(true);
     setError(null);
@@ -57,12 +57,11 @@ export function CreateView({ session, onUpdate, onPersistMessage }: Props) {
         const body = await response.json();
         const reel = normalizeGeneratedReel(text, body);
         const aiMsg: Message = { id: "a" + Date.now(), role: "ai", reel, createdAt: Date.now() };
-        onUpdate({ ...next, messages: [...next.messages, aiMsg] });
+        onUpdate((current) => ({ ...current, messages: [...current.messages, aiMsg] }));
         await onPersistMessage(session.id, aiMsg);
       } catch (e) {
         const message = e instanceof Error ? e.message : "Generation failed";
         setError(message);
-        onUpdate(next);
       } finally {
         setLoading(false);
       }
@@ -138,7 +137,7 @@ export function CreateView({ session, onUpdate, onPersistMessage }: Props) {
             </div>
           )}
 
-          {session.messages.map((m) =>
+          {messages.map((m) =>
             m.role === "user" ? (
               <div key={m.id} className="fade-in flex justify-end">
                 <div className="max-w-[80%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-sm text-primary-foreground shadow-[0_8px_30px_-10px_var(--glow)]">
@@ -257,6 +256,18 @@ function normalizeGeneratedReel(prompt: string, payload: any): Reel {
     published: Boolean(generated.published),
     origin: generated.origin ?? "prompt",
   };
+}
+
+function compareMessages(a: Message, b: Message) {
+  if (a.createdAt !== b.createdAt) {
+    return a.createdAt - b.createdAt;
+  }
+
+  if (a.role !== b.role) {
+    return a.role === "user" ? -1 : 1;
+  }
+
+  return a.id.localeCompare(b.id);
 }
 
 function formatDuration(value: unknown) {
