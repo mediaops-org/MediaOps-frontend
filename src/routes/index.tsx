@@ -111,6 +111,10 @@ function App() {
     );
   };
 
+  const handleRefreshLibrary = useCallback(async () => {
+    await loadSessions();
+  }, [loadSessions]);
+
   const appendMessage = async (sessionId: string, message: Message) => {
     try {
       await apiFetch(`/api/sessions/${sessionId}/messages`, {
@@ -144,7 +148,12 @@ function App() {
           )}
           {view === "explore" && <ExploreView />}
           {view === "library" && (
-            <LibraryView sessions={sessions} onOpen={openSession} onUpdateReel={updateReel} />
+            <LibraryView
+              sessions={sessions}
+              onOpen={openSession}
+              onUpdateReel={updateReel}
+              onRefresh={handleRefreshLibrary}
+            />
           )}
           {view === "youtube" && <YoutubeShortsView />}
           {view === "autopilot" && <AutopilotView />}

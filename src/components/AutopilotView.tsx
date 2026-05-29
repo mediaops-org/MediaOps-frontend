@@ -19,6 +19,8 @@ interface PlannerJobRecord {
   artifactPath?: string | null;
   artifactPaths?: string[];
   videoUrl?: string | null;
+  workerCompletionMetadata?: Record<string, unknown>;
+  plannerJobMetadata?: Record<string, unknown>;
   requestPayload?: {
     topics?: string[];
     sources?: string;
@@ -46,9 +48,65 @@ function getJobTitle(job: PlannerJobRecord) {
   return job.plannerJobId || job.serviceJobId || job.id;
 }
 
+function readStringFromRecord(record: Record<string, unknown> | undefined, keys: string[]): string | null {
+  if (!record) return null;
+
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const nested: string | null = readStringFromRecord(value as Record<string, unknown>, keys);
+      if (nested) return nested;
+    }
+  }
+
+  return null;
+}
+
+function getJobArtifactSource(job: PlannerJobRecord) {
+  const nestedMetadata = job.workerCompletionMetadata ?? job.plannerJobMetadata;
+  return (
+    job.artifactPath?.trim() ||
+    job.artifactPaths?.find((value) => Boolean(value?.trim()))?.trim() ||
+    job.videoUrl?.trim() ||
+    readStringFromRecord(job.responsePayload, [
+      "artifactPath",
+      "artifact_path",
+      "videoUrl",
+      "video_url",
+      "downloadUrl",
+      "download_url",
+      "final_video_path",
+      "captioned_video_path",
+      "planner_job_metadata",
+    ]) ||
+    readStringFromRecord(nestedMetadata, [
+      "artifactPath",
+      "artifact_path",
+      "videoUrl",
+      "video_url",
+      "downloadUrl",
+      "download_url",
+      "final_video_path",
+      "captioned_video_path",
+    ]) ||
+    null
+  );
+}
+
 function getJobVideoSource(job: PlannerJobRecord) {
   const response = job.responsePayload ?? {};
+  const plannerMetadata = (response.planner_job_metadata as Record<string, unknown> | undefined) ?? job.plannerJobMetadata ?? {};
   const candidates = [
+    getJobArtifactSource(job),
+    String(plannerMetadata.artifactPath ?? plannerMetadata.artifact_path ?? ""),
+    String(plannerMetadata.final_video_path ?? ""),
+    String(plannerMetadata.captioned_video_path ?? ""),
+    String(plannerMetadata.videoUrl ?? plannerMetadata.video_url ?? ""),
+    String(plannerMetadata.downloadUrl ?? plannerMetadata.download_url ?? ""),
     job.videoUrl,
     job.artifactPath,
     job.artifactPaths?.[0],
@@ -395,7 +453,7 @@ export function AutopilotView() {
 
                         <div className="mt-4 rounded-xl border border-border bg-background/40 p-3">
                           <div className="mb-2 flex items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                            <span>attached video</span>
+                            <span>realized video</span>
                             <span>{getJobVideoSource(job) ? "available" : "missing"}</span>
                           </div>
                           {getJobVideoSource(job) && isPlayableUrl(getJobVideoSource(job)!) ? (
@@ -412,7 +470,7 @@ export function AutopilotView() {
                             </div>
                           ) : (
                             <div className="rounded-lg border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
-                              Video will appear here once the planner job produces an artifact.
+                              Realized video will appear here once the planner job produces an artifact.
                             </div>
                           )}
                         </div>

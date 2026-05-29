@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
-import { Play, Globe, Lock, Zap, MessageSquare } from "lucide-react";
+import { Play, Globe, Lock, Zap, MessageSquare, RefreshCw } from "lucide-react";
 import type { Session, Reel } from "@/lib/mock-data";
 
 type Props = {
   sessions: Session[];
   onOpen: (id: string) => void;
   onUpdateReel: (sessionId: string, reel: Reel) => void;
+  onRefresh?: () => Promise<void>;
 };
 
 type StatusFilter = "all" | "published" | "unpublished";
@@ -21,9 +22,10 @@ function timeAgo(t: number) {
 
 type FlatReel = { reel: Reel; sessionId: string; sessionTitle: string; createdAt: number };
 
-export function LibraryView({ sessions, onOpen, onUpdateReel }: Props) {
+export function LibraryView({ sessions, onOpen, onUpdateReel, onRefresh }: Props) {
   const [status, setStatus] = useState<StatusFilter>("all");
   const [origin, setOrigin] = useState<OriginFilter>("all");
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const flatReels: FlatReel[] = useMemo(() => {
     const list: FlatReel[] = [];
@@ -51,14 +53,36 @@ export function LibraryView({ sessions, onOpen, onUpdateReel }: Props) {
     onUpdateReel(f.sessionId, { ...f.reel, published: !f.reel.published });
   };
 
+  const handleRefresh = async () => {
+    if (!onRefresh || isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await onRefresh();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
     <div className="flex h-full flex-col">
       <header className="flex h-16 shrink-0 items-center border-b border-border px-6">
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight">Library</h1>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-            {flatReels.length} reels · {flatReels.filter((f) => f.reel.published).length} published
-          </p>
+        <div className="flex flex-1 items-center justify-between">
+          <div>
+            <h1 className="text-lg font-semibold tracking-tight">Library</h1>
+            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+              {flatReels.length} reels · {flatReels.filter((f) => f.reel.published).length} published
+            </p>
+          </div>
+          {onRefresh && (
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="group flex items-center gap-2 rounded-lg border border-border bg-secondary/50 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground transition-all hover:border-primary/40 hover:text-primary disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin text-primary" : "group-hover:rotate-180 transition-transform duration-500"}`} />
+              {isRefreshing ? "Refreshing..." : "Refresh"}
+            </button>
+          )}
         </div>
       </header>
 
