@@ -89,9 +89,27 @@ export function AutopilotView() {
   const [top, setTop] = useState(5);
   const [rank, setRank] = useState(true);
   const [useCache, setUseCache] = useState(true);
-  const [scheduleCron, setScheduleCron] = useState("0 9 * * *");
+  const [scheduleType, setScheduleType] = useState<"daily" | "weekly" | "monthly" | "custom">("daily");
+  const [timeOfDay, setTimeOfDay] = useState("09:00");
+  const [weeklyDay, setWeeklyDay] = useState<number>(1); // 0=Sun,1=Mon...
+  const [monthlyDay, setMonthlyDay] = useState<number>(1);
+  const [customCron, setCustomCron] = useState("0 9 * * *");
 
   const activeJobs = useMemo(() => jobs.filter((job) => job.status !== "failed"), [jobs]);
+
+  const schedulePreview = useMemo(() => {
+    const [hhStr, mmStr] = (timeOfDay || "09:00").split(":");
+    const hh = Number(hhStr || 9) || 9;
+    const mm = Number(mmStr || 0) || 0;
+    const timeStr = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+    if (scheduleType === "custom") return `Custom cron: ${customCron}`;
+    if (scheduleType === "daily") return `Every day at ${timeStr} (cron: ${mm} ${hh} * * *)`;
+    if (scheduleType === "weekly") return `Every ${days[weeklyDay]} at ${timeStr} (cron: ${mm} ${hh} * * ${weeklyDay})`;
+    if (scheduleType === "monthly") return `Every month on day ${monthlyDay} at ${timeStr} (cron: ${mm} ${hh} ${monthlyDay} * *)`;
+    return "";
+  }, [scheduleType, timeOfDay, weeklyDay, monthlyDay, customCron]);
 
   const fetchJobs = async () => {
     try {
@@ -143,6 +161,21 @@ export function AutopilotView() {
     setSubmitting(true);
     setError(null);
     try {
+      const computeCron = () => {
+        const pad = (n: number) => String(n).padStart(2, "0");
+        const [hhStr, mmStr] = (timeOfDay || "09:00").split(":");
+        const hh = Number(hhStr || 9) || 9;
+        const mm = Number(mmStr || 0) || 0;
+
+        if (scheduleType === "custom") return (customCron || "").trim() || undefined;
+        if (scheduleType === "daily") return `${mm} ${hh} * * *`;
+        if (scheduleType === "weekly") return `${mm} ${hh} * * ${weeklyDay}`;
+        if (scheduleType === "monthly") return `${mm} ${hh} ${monthlyDay} * *`;
+        return undefined;
+      };
+
+      const schedule_cron = computeCron();
+
       const response = await apiFetch("/api/generation/planner", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -154,7 +187,7 @@ export function AutopilotView() {
           // defaults applied server-side; include explicit booleans for clarity
           save: true,
           execute_worker: true,
-          schedule_cron: scheduleCron.trim() || undefined,
+          schedule_cron,
         }),
       });
 
@@ -468,13 +501,66 @@ export function AutopilotView() {
                     className="w-full rounded-xl border border-border bg-background/60 px-3 py-2 text-sm outline-none transition-colors focus:border-primary"
                   />
                 </Field>
-                <Field label="Cron">
-                  <input
-                    value={scheduleCron}
-                    onChange={(event) => setScheduleCron(event.target.value)}
-                    placeholder="0 9 * * *"
-                    className="w-full rounded-xl border border-border bg-background/60 px-3 py-2 text-sm outline-none transition-colors focus:border-primary"
-                  />
+                <Field label="Schedule">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="inline-flex items-center gap-2">
+                        <input type="radio" name="schedule" checked={scheduleType === "daily"} onChange={() => setScheduleType("daily")} />
+                        <span className="ml-1">Daily</span>
+                      </label>
+                      <label className="inline-flex items-center gap-2">
+                        <input type="radio" name="schedule" checked={scheduleType === "weekly"} onChange={() => setScheduleType("weekly")} />
+                        <span className="ml-1">Weekly</span>
+                      </label>
+                      <label className="inline-flex items-center gap-2">
+                        <input type="radio" name="schedule" checked={scheduleType === "monthly"} onChange={() => setScheduleType("monthly")} />
+                        <span className="ml-1">Monthly</span>
+                      </label>
+                      <label className="inline-flex items-center gap-2">
+                        <input type="radio" name="schedule" checked={scheduleType === "custom"} onChange={() => setScheduleType("custom")} />
+                        <span className="ml-1">Advanced</span>
+                      </label>
+                    </div>
+
+                    <div>
+                      {scheduleType === "daily" && (
+                        <div className="flex items-center gap-2">
+                          <input type="time" value={timeOfDay} onChange={(e) => setTimeOfDay(e.target.value)} className="rounded-xl border border-border bg-background/60 px-3 py-2 text-sm" />
+                          <span className="text-sm text-muted-foreground">every day at local time</span>
+                        </div>
+                      )}
+
+                      {scheduleType === "weekly" && (
+                        <div className="flex items-center gap-2">
+                          <select value={weeklyDay} onChange={(e) => setWeeklyDay(Number(e.target.value))} className="rounded-xl border border-border bg-background/60 px-3 py-2 text-sm">
+                            <option value={0}>Sunday</option>
+                            <option value={1}>Monday</option>
+                            <option value={2}>Tuesday</option>
+                            <option value={3}>Wednesday</option>
+                            <option value={4}>Thursday</option>
+                            <option value={5}>Friday</option>
+                            <option value={6}>Saturday</option>
+                          </select>
+                          <input type="time" value={timeOfDay} onChange={(e) => setTimeOfDay(e.target.value)} className="rounded-xl border border-border bg-background/60 px-3 py-2 text-sm" />
+                          <span className="text-sm text-muted-foreground">every week</span>
+                        </div>
+                      )}
+
+                      {scheduleType === "monthly" && (
+                        <div className="flex items-center gap-2">
+                          <input type="number" min={1} max={28} value={monthlyDay} onChange={(e) => setMonthlyDay(Number(e.target.value || 1))} className="w-20 rounded-xl border border-border bg-background/60 px-3 py-2 text-sm" />
+                          <input type="time" value={timeOfDay} onChange={(e) => setTimeOfDay(e.target.value)} className="rounded-xl border border-border bg-background/60 px-3 py-2 text-sm" />
+                          <span className="text-sm text-muted-foreground">day of month</span>
+                        </div>
+                      )}
+
+                      {scheduleType === "custom" && (
+                        <input value={customCron} onChange={(e) => setCustomCron(e.target.value)} placeholder="0 9 * * *" className="w-full rounded-xl border border-border bg-background/60 px-3 py-2 text-sm outline-none transition-colors focus:border-primary" />
+                      )}
+                    </div>
+                    <div className="mt-1 text-sm text-muted-foreground">{schedulePreview}</div>
+                    <div className="mt-1 text-sm text-muted-foreground">Choose a simple schedule or pick Advanced to enter a cron expression.</div>
+                  </div>
                 </Field>
               </div>
 
