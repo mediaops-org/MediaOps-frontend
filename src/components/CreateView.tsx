@@ -7,9 +7,10 @@ import { type Message, type Reel, type Session } from "@/lib/mock-data";
 type Props = {
   session: Session;
   onUpdate: (s: Session) => void;
+  onPersistMessage: (sessionId: string, message: Message) => Promise<void>;
 };
 
-export function CreateView({ session, onUpdate }: Props) {
+export function CreateView({ session, onUpdate, onPersistMessage }: Props) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,9 +33,10 @@ export function CreateView({ session, onUpdate }: Props) {
     setInput("");
     setLoading(true);
     setError(null);
-
+ 
     void (async () => {
       try {
+        await onPersistMessage(session.id, userMsg);
         const response = await apiFetch("/api/generation/prompt", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -56,6 +58,7 @@ export function CreateView({ session, onUpdate }: Props) {
         const reel = normalizeGeneratedReel(text, body);
         const aiMsg: Message = { id: "a" + Date.now(), role: "ai", reel, createdAt: Date.now() };
         onUpdate({ ...next, messages: [...next.messages, aiMsg] });
+        await onPersistMessage(session.id, aiMsg);
       } catch (e) {
         const message = e instanceof Error ? e.message : "Generation failed";
         setError(message);
@@ -223,17 +226,33 @@ function normalizeGeneratedReel(prompt: string, payload: any): Reel {
   const hue =
     typeof generated.thumbnailHue === "number"
       ? generated.thumbnailHue
-      : hashToHue(title || prompt || generated.artifactPath || generated.videoUrl || "generated-reel");
+      : hashToHue(
+          title ||
+            prompt ||
+            generated.artifactPath ||
+            response?.captioned_video_path ||
+            response?.final_video_path ||
+            generated.videoUrl ||
+            "generated-reel"
+        );
+  const streamUrl = generated.id ? `/api/reels/${generated.id}/stream` : undefined;
   const videoUrl =
-    generated.videoUrl ?? generated.artifactPath ?? generated.finalVideoPath ?? response?.final_video_path ?? response?.captioned_video_path;
+    streamUrl ??
+    generated.videoUrl ??
+    generated.captionedVideoPath ??
+    response?.captioned_video_path ??
+    generated.finalVideoPath ??
+    response?.final_video_path;
+  const artifactPath =
+    generated.artifactPath ?? generated.captionedVideoPath ?? response?.captioned_video_path ?? generated.finalVideoPath ?? response?.final_video_path ?? null;
 
   return {
     id: generated.id ?? `r${Date.now()}`,
     title: title.length > 0 ? title : "Generated Reel",
     duration,
     thumbnailHue: hue,
-    videoUrl,
-    artifactPath: generated.artifactPath ?? generated.videoUrl ?? response?.final_video_path,
+    videoUrl: typeof videoUrl === "string" && videoUrl.trim() ? (/^https?:\/\//i.test(videoUrl) ? videoUrl : streamUrl) : streamUrl,
+    artifactPath,
     thumbnailUrl: generated.thumbnailUrl ?? null,
     published: Boolean(generated.published),
     origin: generated.origin ?? "prompt",
