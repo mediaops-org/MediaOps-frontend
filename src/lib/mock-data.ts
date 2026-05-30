@@ -5,14 +5,15 @@ export type Reel = {
   id: string;
   title: string;
   duration: string;
-  thumbnailHue: number; // for visual variety
+  thumbnailHue?: string | number; // for visual variety
   videoUrl?: string;
   artifactPath?: string;
   thumbnailUrl?: string | null;
-  creator?: { name: string; handle: string; avatarHue: number };
+  creator?: { name: string; handle: string; avatarUrl?: string; avatarHue?: number };
   tags?: string[];
   published?: boolean;
   origin?: ReelOrigin;
+  createdAt?: string | number | Date;
 };
 
 export type Message =
@@ -27,18 +28,6 @@ export type Session = {
 };
 
 const r = (n: number) => Math.floor(Math.random() * n);
-
-export const exploreReels: Reel[] = [
-  { id: "e1", title: "Neon Tokyo at midnight", duration: "0:18", thumbnailHue: 195, creator: { name: "Aiko Tanaka", handle: "aiko", avatarHue: 200 }, tags: ["cinematic", "city"] },
-  { id: "e2", title: "Sunrise over the Dolomites", duration: "0:24", thumbnailHue: 30, creator: { name: "Marco Rossi", handle: "marco", avatarHue: 30 }, tags: ["nature", "drone"] },
-  { id: "e3", title: "Product launch teaser — v2", duration: "0:15", thumbnailHue: 280, creator: { name: "Lena Park", handle: "lenap", avatarHue: 290 }, tags: ["product", "tech"] },
-  { id: "e4", title: "Coffee shop morning routine", duration: "0:30", thumbnailHue: 25, creator: { name: "Sam Diallo", handle: "samd", avatarHue: 40 }, tags: ["lifestyle"] },
-  { id: "e5", title: "Glitch transition pack", duration: "0:12", thumbnailHue: 320, creator: { name: "Ruby Cole", handle: "ruby", avatarHue: 340 }, tags: ["motion", "fx"] },
-  { id: "e6", title: "Skate session — golden hour", duration: "0:22", thumbnailHue: 50, creator: { name: "Jonas Weber", handle: "jonas", avatarHue: 60 }, tags: ["sports"] },
-  { id: "e7", title: "Brutalist architecture tour", duration: "0:28", thumbnailHue: 220, creator: { name: "Iris Novak", handle: "iris", avatarHue: 230 }, tags: ["architecture"] },
-  { id: "e8", title: "Studio ghibli style intro", duration: "0:20", thumbnailHue: 150, creator: { name: "Hana Ito", handle: "hana", avatarHue: 160 }, tags: ["anime", "intro"] },
-  { id: "e9", title: "Minimal podcast cover loop", duration: "0:10", thumbnailHue: 260, creator: { name: "Theo Marsh", handle: "theo", avatarHue: 270 }, tags: ["podcast"] },
-];
 
 export const initialSessions: Session[] = [
   {

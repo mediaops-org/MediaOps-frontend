@@ -1,6 +1,7 @@
 import { Play, Download, Share2 } from "lucide-react";
 import type { Reel } from "@/lib/mock-data";
 import ShadcnVideo from "./ShadcnVideo";
+import { BASE } from "@/lib/api";
 
 type Props = {
   reel: Reel;
@@ -9,8 +10,18 @@ type Props = {
 };
 
 export function ReelCard({ reel, showCreator, compact }: Props) {
-  const hue = Number.isFinite(reel.thumbnailHue) ? reel.thumbnailHue : 220;
-  const hasPlayableVideo = Boolean(reel.videoUrl);
+  const thumbnailHue = typeof reel.thumbnailHue === 'string' ? parseInt(reel.thumbnailHue) : (reel.thumbnailHue ?? 220);
+  const hue = Number.isFinite(thumbnailHue) ? thumbnailHue : 220;
+  
+  const creatorHue = reel.creator?.handle 
+    ? (reel.creator.handle.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 360) 
+    : 200;
+
+  const videoUrl = reel.videoUrl?.startsWith('http') 
+    ? reel.videoUrl 
+    : (reel.videoUrl ? `${BASE}/api/reels/${reel.id}/stream` : undefined);
+
+  const hasPlayableVideo = Boolean(videoUrl);
   return (
     <div
       className="card-hover group relative overflow-hidden rounded-xl border border-border bg-card"
@@ -18,12 +29,12 @@ export function ReelCard({ reel, showCreator, compact }: Props) {
     >
       {/* Video placeholder */}
       <div
-        className="relative w-full overflow-hidden"
+        className="relative aspect-[9/16] w-full overflow-hidden"
         style={{
           background: `radial-gradient(circle at 30% 30%, oklch(0.45 0.18 ${hue}) 0%, oklch(0.18 0.04 ${hue + 20}) 60%, oklch(0.12 0.02 260) 100%)`,
         }}
       >
-        {hasPlayableVideo && <ShadcnVideo src={reel.videoUrl} poster={reel.thumbnailUrl ?? null} className="relative z-10" />}
+        {hasPlayableVideo && <ShadcnVideo src={videoUrl} poster={reel.thumbnailUrl ?? null} className="relative z-10" />}
         {!hasPlayableVideo && reel.thumbnailUrl && (
           <img
             className="absolute inset-0 h-full w-full object-cover opacity-90"
@@ -54,10 +65,14 @@ export function ReelCard({ reel, showCreator, compact }: Props) {
 
         {showCreator && reel.creator && (
           <div className="mt-2 flex items-center gap-2">
-            <div
-              className="h-5 w-5 rounded-full ring-1 ring-border"
-              style={{ background: `linear-gradient(135deg, oklch(0.7 0.15 ${reel.creator.avatarHue}), oklch(0.4 0.12 ${reel.creator.avatarHue + 40}))` }}
-            />
+            {reel.creator.avatarUrl ? (
+              <img src={reel.creator.avatarUrl} className="h-5 w-5 rounded-full ring-1 ring-border object-cover" alt={reel.creator.name} />
+            ) : (
+              <div
+                className="h-5 w-5 rounded-full ring-1 ring-border"
+                style={{ background: `linear-gradient(135deg, oklch(0.7 0.15 ${creatorHue}), oklch(0.4 0.12 ${creatorHue + 40}))` }}
+              />
+            )}
             <span className="font-mono text-[11px] text-muted-foreground">@{reel.creator.handle}</span>
           </div>
         )}

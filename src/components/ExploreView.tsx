@@ -1,27 +1,57 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ReelCard } from "./ReelCard";
-import { exploreReels } from "@/lib/mock-data";
+import { apiFetch } from "@/lib/api";
+import type { Reel } from "@/lib/mock-data";
 
 const filters = ["All", "Trending", "Recent"] as const;
 type Filter = (typeof filters)[number];
 
 export function ExploreView() {
+  const [reels, setReels] = useState<Reel[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>("All");
   const [tag, setTag] = useState<string | null>(null);
 
-  const allTags = useMemo(() => {
-    const s = new Set<string>();
-    exploreReels.forEach((r) => r.tags?.forEach((t) => s.add(t)));
-    return Array.from(s);
+  useEffect(() => {
+    async function load() {
+      try {
+        setLoading(true);
+        const res = await apiFetch("/api/reels?limit=50");
+        if (res.ok) {
+          const json = await res.json();
+          // The backend wraps the response in a "data" field via an interceptor
+          const items = json.data?.items || json.items || [];
+          setReels(items);
+        }
+      } catch (err) {
+        console.error("Failed to fetch explore reels:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
   }, []);
 
-  const reels = useMemo(() => {
-    let r = [...exploreReels];
-    if (filter === "Trending") r = r.slice().reverse();
-    if (filter === "Recent") r = r.slice(0, 6);
+  const allTags = useMemo(() => {
+    const s = new Set<string>();
+    reels.forEach((r) => r.tags?.forEach((t) => s.add(t)));
+    return Array.from(s);
+  }, [reels]);
+
+  const displayReels = useMemo(() => {
+    let r = [...reels];
+    if (filter === "Trending") {
+      // Logic: show random selection or based on some heuristic
+      // For now, let's just shuffle them slightly to feel "dynamic"
+      r = [...r].sort((a, b) => (a.id > b.id ? 1 : -1)).reverse();
+    }
+    if (filter === "Recent") {
+      // Backend already sorts by DESC, so we just take the top 8
+      r = r.slice(0, 8);
+    }
     if (tag) r = r.filter((x) => x.tags?.includes(tag));
     return r;
-  }, [filter, tag]);
+  }, [reels, filter, tag]);
 
   return (
     <div className="flex h-full flex-col">
@@ -73,19 +103,27 @@ export function ExploreView() {
             </div>
           </div>
 
-          {/* Grid */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {reels.map((r) => (
-              <div key={r.id} className="fade-in">
-                <ReelCard reel={r} showCreator />
-              </div>
-            ))}
-          </div>
-
-          {reels.length === 0 && (
-            <div className="py-20 text-center font-mono text-sm text-muted-foreground">
-              no reels match this filter.
+          {loading ? (
+            <div className="flex h-64 items-center justify-center">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>
+          ) : (
+            <>
+              {/* Grid */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {displayReels.map((r) => (
+                  <div key={r.id} className="fade-in">
+                    <ReelCard reel={r} showCreator />
+                  </div>
+                ))}
+              </div>
+
+              {displayReels.length === 0 && (
+                <div className="py-20 text-center font-mono text-sm text-muted-foreground">
+                  no reels found.
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
