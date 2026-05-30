@@ -20,7 +20,7 @@ export default function ShadcnVideo({ src, reelId, poster = null, className = ''
   const [loadError, setLoadError] = useState<string | null>(null);
   const [blobSrc, setBlobSrc] = useState<string | null>(null);
   const [isLoadingStream, setIsLoadingStream] = useState(false);
-  const [aspectRatio, setAspectRatio] = useState('16 / 9');
+  const [aspectRatio, setAspectRatio] = useState('9 / 16');
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);

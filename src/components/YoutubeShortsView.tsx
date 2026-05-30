@@ -642,7 +642,7 @@ export function YoutubeShortsView() {
           {previewClip && (
             <div className="space-y-4">
               <div
-                className="relative aspect-video w-full overflow-hidden rounded-lg"
+                className="relative aspect-[9/16] w-full overflow-hidden rounded-lg"
                 style={{
                   background: `radial-gradient(circle at 30% 30%, oklch(0.45 0.18 ${previewClip.thumbnailHue}) 0%, oklch(0.18 0.04 ${previewClip.thumbnailHue + 20}) 60%, oklch(0.12 0.02 260) 100%)`,
                 }}
@@ -691,7 +691,7 @@ function ClipCard({ clip, onPlay, onRegenerate }: ClipCardProps) {
     >
       {/* Thumbnail */}
       <div
-        className="relative aspect-video w-full overflow-hidden"
+        className="relative aspect-[9/16] w-full overflow-hidden"
         style={{
           background: `radial-gradient(circle at 30% 30%, oklch(0.45 0.18 ${hue}) 0%, oklch(0.18 0.04 ${hue + 20}) 60%, oklch(0.12 0.02 260) 100%)`,
         }}

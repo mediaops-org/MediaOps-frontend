@@ -1,4 +1,4 @@
-const BASE = (import.meta.env.VITE_API_URL as string) || '';
+export const BASE = (import.meta.env.VITE_API_URL as string) || '';
 
 export async function apiFetch(input: RequestInfo, init?: RequestInit) {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;

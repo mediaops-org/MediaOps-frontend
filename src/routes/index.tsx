@@ -7,7 +7,7 @@ import { LibraryView } from "@/components/LibraryView";
 import { AutopilotView } from "@/components/AutopilotView";
 import { YoutubeShortsView } from "@/components/YoutubeShortsView";
 import { ProtectedRoute } from "@/components/AuthGuards";
-import apiFetch from "@/lib/api";
+import apiFetch, { BASE } from "@/lib/api";
 import {
   initialSessions,
   newSession,
@@ -203,9 +203,9 @@ function normalizeMessage(raw: any): Message {
         thumbnailHue: Number.isFinite(reel.thumbnailHue) ? reel.thumbnailHue : 220,
         videoUrl:
           typeof reel.videoUrl === "string" && reel.videoUrl.trim()
-            ? (/^https?:\/\//i.test(reel.videoUrl) ? reel.videoUrl : `/api/reels/${reel.id}/stream`)
+            ? (/^https?:\/\//i.test(reel.videoUrl) ? reel.videoUrl : `${BASE}/api/reels/${reel.id}/stream`)
             : reel.id && (reel.artifactPath || reel.sourceService || reel.origin)
-              ? `/api/reels/${reel.id}/stream`
+              ? `${BASE}/api/reels/${reel.id}/stream`
               : undefined,
         artifactPath: reel.artifactPath ?? null,
         thumbnailUrl: reel.thumbnailUrl ?? null,

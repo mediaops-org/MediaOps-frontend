@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Activity, Calendar, Check, ChevronRight, Clock3, Loader2, Lock, Plus, RefreshCw, Sparkles } from "lucide-react";
+import { Activity, Calendar, Check, ChevronRight, Clock3, Loader2, Lock, Pause, Play, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useUpgradeModal } from "@/components/UpgradeModal";
-import apiFetch from "@/lib/api";
+import apiFetch, { BASE } from "@/lib/api";
 
 const PRESET_TOPICS = ["Tech", "News", "Sport", "Fashion", "Food"] as const;
 
@@ -35,6 +35,7 @@ interface PlannerJobRecord {
   };
   responsePayload?: Record<string, unknown>;
   errorMessage?: string | null;
+  isEnabled?: boolean;
 }
 
 function normalizeJobs(payload: any): PlannerJobRecord[] {
@@ -97,34 +98,41 @@ function getJobArtifactSource(job: PlannerJobRecord) {
   );
 }
 
-function getJobVideoSource(job: PlannerJobRecord) {
+function getAllJobVideos(job: PlannerJobRecord): string[] {
   const response = job.responsePayload ?? {};
   const plannerMetadata = (response.planner_job_metadata as Record<string, unknown> | undefined) ?? job.plannerJobMetadata ?? {};
-  const candidates = [
-    getJobArtifactSource(job),
+  
+  const rawPaths = [
+    ...(job.artifactPaths || []),
+    job.artifactPath,
+    job.videoUrl,
     String(plannerMetadata.artifactPath ?? plannerMetadata.artifact_path ?? ""),
     String(plannerMetadata.final_video_path ?? ""),
     String(plannerMetadata.captioned_video_path ?? ""),
     String(plannerMetadata.videoUrl ?? plannerMetadata.video_url ?? ""),
-    String(plannerMetadata.downloadUrl ?? plannerMetadata.download_url ?? ""),
-    job.videoUrl,
-    job.artifactPath,
-    job.artifactPaths?.[0],
     String(response.videoUrl ?? response.video_url ?? ""),
-    String(response.downloadUrl ?? response.download_url ?? ""),
     String(response.artifactPath ?? response.artifact_path ?? ""),
-    String(response.final_video_path ?? ""),
-    String(response.captioned_video_path ?? ""),
-  ]
-    .map((value) => (typeof value === "string" ? value.trim() : ""))
-    .filter(Boolean);
+  ].filter(Boolean) as string[];
 
-  return candidates[0] || null;
+  // Deduplicate and normalize
+  const unique = Array.from(new Set(rawPaths.map(p => p.trim()))).filter(Boolean);
+
+  return unique.map(path => {
+    if (path.startsWith("http") || path.startsWith("/api/")) return path;
+    // Local path needs streaming
+    return `${BASE}/api/generation/jobs/${job.id}/stream?path=${encodeURIComponent(path)}`;
+  });
+}
+
+function getJobVideoSource(job: PlannerJobRecord) {
+  const videos = getAllJobVideos(job);
+  return videos.length > 0 ? videos[0] : null;
 }
 
 function isPlayableUrl(value: string) {
   return /^https?:\/\//i.test(value) || value.startsWith("/");
 }
+
 
 function formatDate(value?: string) {
   if (!value) return "just now";
@@ -205,6 +213,31 @@ export function AutopilotView() {
       await fetchJobs();
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const toggleJob = async (id: string) => {
+    try {
+      const response = await apiFetch(`/api/generation/jobs/${id}/toggle`, {
+        method: "PATCH",
+      });
+      if (!response.ok) throw new Error("Failed to toggle job");
+      await fetchJobs();
+    } catch (err: any) {
+      setError(err.message || "Failed to toggle job");
+    }
+  };
+
+  const deleteJob = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this planned job?")) return;
+    try {
+      const response = await apiFetch(`/api/generation/jobs/${id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("Failed to delete job");
+      await fetchJobs();
+    } catch (err: any) {
+      setError(err.message || "Failed to delete job");
     }
   };
 
@@ -417,80 +450,127 @@ export function AutopilotView() {
                   </button>
                 </div>
               ) : (
-                <div className="grid gap-3 md:grid-cols-2">
+                <div className="flex flex-col gap-6">
                   {jobs.map((job) => {
                     const title = getJobTitle(job);
+                    const videos = getAllJobVideos(job);
+
                     return (
                       <article
                         key={job.id}
-                        className="rounded-xl border border-border bg-background/50 p-4 transition-shadow hover:shadow-[0_20px_40px_-30px_rgba(0,0,0,0.8)]"
+                        className={`rounded-xl border border-border bg-background/50 p-6 transition-all hover:shadow-[0_20px_40px_-30px_rgba(0,0,0,0.8)] ${
+                          !job.isEnabled ? "opacity-60 saturate-50" : ""
+                        }`}
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
+                        <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+                          <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest text-primary">
-                                <Sparkles className="h-2.5 w-2.5" />
+                              <span
+                                className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest ${
+                                  job.status === "failed"
+                                    ? "border-destructive/30 bg-destructive/10 text-destructive"
+                                    : "border-primary/30 bg-primary/10 text-primary"
+                                }`}
+                              >
+                                {job.status === "failed" ? <Activity className="h-2.5 w-2.5" /> : <Sparkles className="h-2.5 w-2.5" />}
                                 {job.status || "pending"}
                               </span>
+                              {!job.isEnabled && (
+                                <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest text-amber-500">
+                                  Paused
+                                </span>
+                              )}
                               <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
                                 {formatDate(job.createdAt)}
                               </span>
+                              
+                              <div className="ml-auto flex items-center gap-1.5">
+                                <button
+                                  onClick={() => toggleJob(job.id)}
+                                  title={job.isEnabled ? "Pause job" : "Resume job"}
+                                  className={`flex h-7 w-7 items-center justify-center rounded-lg border transition-colors ${
+                                    job.isEnabled
+                                      ? "border-border bg-card text-muted-foreground hover:border-amber-500/40 hover:text-amber-500"
+                                      : "border-amber-500/40 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20"
+                                  }`}
+                                >
+                                  {job.isEnabled ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                                </button>
+                                <button
+                                  onClick={() => deleteJob(job.id)}
+                                  title="Delete job"
+                                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
                             </div>
-                            <h3 className="mt-2 truncate text-sm font-semibold text-white">{title}</h3>
-                          </div>
-                          <div className="rounded-md border border-border bg-card px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                            {job.kind || "planner"}
-                          </div>
-                        </div>
 
-                        <div className="mt-4 grid grid-cols-2 gap-2 text-[11px]">
-                          <Detail icon={<Activity className="h-3 w-3" />} label="planner id" value={job.plannerJobId || job.id} />
-                          <Detail icon={<Clock3 className="h-3 w-3" />} label="worker" value={job.serviceJobId || "waiting"} />
-                          <Detail icon={<Calendar className="h-3 w-3" />} label="cron" value={job.requestPayload?.schedule_cron || "not set"} />
-                          <Detail icon={<Calendar className="h-3 w-3" />} label="next exec" value={job.nextRunAt ? formatDate(job.nextRunAt) : "not scheduled"} accent={Boolean(job.nextRunAt)} />
-                          <Detail icon={<Check className="h-3 w-3" />} label="save" value={job.requestPayload?.save ? "yes" : "no"} accent={Boolean(job.requestPayload?.save)} />
-                        </div>
-
-                        <div className="mt-4 rounded-xl border border-border bg-background/40 p-3">
-                          <div className="mb-2 flex items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                            <span>realized video</span>
-                            <span>{getJobVideoSource(job) ? "available" : "missing"}</span>
-                          </div>
-                          {getJobVideoSource(job) && isPlayableUrl(getJobVideoSource(job)!) ? (
-                            <video
-                              src={getJobVideoSource(job)!}
-                              controls
-                              preload="metadata"
-                              playsInline
-                              className="aspect-video w-full rounded-lg border border-border bg-black object-cover"
-                            />
-                          ) : getJobVideoSource(job) ? (
-                            <div className="rounded-lg border border-border bg-card px-3 py-2 font-mono text-[11px] text-muted-foreground">
-                              {getJobVideoSource(job)}
+                            <h3 className={`mt-2 text-lg font-semibold whitespace-pre-wrap transition-colors ${job.isEnabled ? "text-white" : "text-zinc-500"}`}>
+                              {title}
+                            </h3>
+                            
+                            <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3 text-[11px]">
+                              <Detail icon={<Activity className="h-3 w-3" />} label="planner id" value={job.plannerJobId || job.id} />
+                              <Detail icon={<Clock3 className="h-3 w-3" />} label="worker" value={job.serviceJobId || "waiting"} />
+                              <Detail icon={<Calendar className="h-3 w-3" />} label="cron" value={job.requestPayload?.schedule_cron || "not set"} />
+                              <Detail icon={<Calendar className="h-3 w-3" />} label="next exec" value={job.nextRunAt ? formatDate(job.nextRunAt) : "not scheduled"} accent={Boolean(job.nextRunAt)} />
+                              <Detail icon={<Check className="h-3 w-3" />} label="save" value={job.requestPayload?.save ? "yes" : "no"} accent={Boolean(job.requestPayload?.save)} />
                             </div>
-                          ) : (
-                            <div className="rounded-lg border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
-                              Realized video will appear here once the planner job produces an artifact.
+
+                            <div className="mt-6 flex items-center justify-between border-t border-border/60 pt-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                              <span>{job.requestPayload?.execute_worker ? "worker enabled" : "worker skipped"}</span>
+                              <button
+                                onClick={() => setIsFormOpen(true)}
+                                className="inline-flex items-center gap-1 text-primary transition-colors hover:text-primary/80"
+                              >
+                                New plan
+                                <ChevronRight className="h-3.5 w-3.5" />
+                              </button>
                             </div>
-                          )}
-                        </div>
 
-                        <div className="mt-3 flex items-center justify-between border-t border-border/60 pt-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                          <span>{job.requestPayload?.execute_worker ? "worker enabled" : "worker skipped"}</span>
-                          <button
-                            onClick={() => setIsFormOpen(true)}
-                            className="inline-flex items-center gap-1 text-primary transition-colors hover:text-primary/80"
-                          >
-                            New plan
-                            <ChevronRight className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-
-                        {job.errorMessage && (
-                          <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                            {job.errorMessage}
+                            {job.errorMessage && (
+                              <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                                {job.errorMessage}
+                              </div>
+                            )}
                           </div>
-                        )}
+
+                          <div className="lg:w-1/2">
+                            <div className="mb-2 flex items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                              <span>realized videos ({videos.length})</span>
+                              <span>{videos.length > 0 ? "available" : "missing"}</span>
+                            </div>
+                            
+                            {videos.length > 0 ? (
+                              <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-thin scrollbar-track-border/20 scrollbar-thumb-primary/20">
+                                {videos.map((src, idx) => (
+                                  <div key={idx} className="relative w-[160px] flex-shrink-0">
+                                    <video
+                                      src={src}
+                                      controls
+                                      preload="metadata"
+                                      playsInline
+                                      className="aspect-[9/16] w-full rounded-xl border border-border bg-black object-cover shadow-lg"
+                                    />
+                                    <div className="absolute top-2 left-2 rounded-md bg-black/60 px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-widest text-white backdrop-blur">
+                                      #{idx + 1}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="flex h-[157px] flex-col items-center justify-center rounded-xl border border-dashed border-border bg-background/40 px-3 text-center">
+                                <div className="mb-2 h-8 w-8 rounded-full bg-border/50 flex items-center justify-center">
+                                  <Clock3 className="h-4 w-4 text-muted-foreground" />
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  Realized videos will appear here once the job produces artifacts.
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </article>
                     );
                   })}

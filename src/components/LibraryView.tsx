@@ -129,7 +129,7 @@ export function LibraryView({ sessions, onOpen, onUpdateReel, onRefresh }: Props
                   {/* Thumbnail */}
                   <button
                     onClick={() => onOpen(f.sessionId)}
-                    className="relative aspect-video w-full overflow-hidden text-left"
+                    className="relative aspect-[9/16] w-full overflow-hidden text-left"
                     style={{
                       background: `radial-gradient(circle at 30% 30%, oklch(0.45 0.18 ${r.thumbnailHue}) 0%, oklch(0.18 0.04 ${r.thumbnailHue + 20}) 60%, oklch(0.12 0.02 260) 100%)`,
                     }}
